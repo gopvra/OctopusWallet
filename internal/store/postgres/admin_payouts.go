@@ -42,8 +42,8 @@ func (s *Store) ListPayouts(ctx context.Context, filter store.PayoutFilter) (*st
 		argIdx++
 	}
 	if filter.Search != "" {
-		conditions = append(conditions, fmt.Sprintf("(to_address ILIKE $%d OR id::text ILIKE $%d)", argIdx, argIdx))
-		args = append(args, "%"+filter.Search+"%")
+		conditions = append(conditions, fmt.Sprintf("(to_address ILIKE $%d ESCAPE '\\' OR id::text ILIKE $%d ESCAPE '\\')", argIdx, argIdx))
+		args = append(args, "%"+store.EscapeSearch(filter.Search)+"%")
 		argIdx++
 	}
 

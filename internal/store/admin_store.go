@@ -2,10 +2,13 @@ package store
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/octopuswallet/octopuswallet/internal/models"
 )
+
+const maxSearchLength = 100
 
 type PaginationParams struct {
 	Page    int    `form:"page"`
@@ -25,6 +28,18 @@ func (p *PaginationParams) Normalize() {
 	if p.Order != "asc" && p.Order != "desc" {
 		p.Order = "desc"
 	}
+	if len(p.Search) > maxSearchLength {
+		p.Search = p.Search[:maxSearchLength]
+	}
+}
+
+// EscapeSearch escapes SQL LIKE/ILIKE wildcard characters to prevent
+// pattern injection and DoS via expensive pattern matching.
+func EscapeSearch(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 func (p *PaginationParams) Offset() int {

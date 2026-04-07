@@ -75,14 +75,16 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 	}
 
 	// Create individual items (each will become a payout)
-	for _, item := range req.Items {
+	var failedItems []int
+	for i, item := range req.Items {
 		batchItem := &models.BatchPayoutItem{
 			BatchID:   batch.ID,
 			ToAddress: item.ToAddress,
 			Amount:    item.Amount,
 		}
 		if err := h.store.CreateBatchPayoutItem(c.Request.Context(), batchItem); err != nil {
-			continue // log but don't fail entire batch
+			failedItems = append(failedItems, i)
+			continue
 		}
 
 		// Create actual payout for each item
@@ -93,10 +95,17 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 			ToAddress:  item.ToAddress,
 			Amount:     item.Amount,
 		}
-		h.store.CreatePayout(c.Request.Context(), payout)
+		if err := h.store.CreatePayout(c.Request.Context(), payout); err != nil {
+			failedItems = append(failedItems, i)
+		}
 	}
 
-	c.JSON(http.StatusCreated, batch)
+	resp := gin.H{"batch": batch}
+	if len(failedItems) > 0 {
+		resp["failed_items"] = failedItems
+		resp["warning"] = "some items failed to create"
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 func (h *BatchPayoutHandler) GetBatchPayout(c *gin.Context) {

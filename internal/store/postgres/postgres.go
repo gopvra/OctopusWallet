@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -20,6 +21,8 @@ func New(databaseURL string, maxOpenConns int) (*Store, error) {
 		return nil, fmt.Errorf("connect to postgres: %w", err)
 	}
 	db.SetMaxOpenConns(maxOpenConns)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	return &Store{db: db}, nil
 }
 
@@ -524,6 +527,13 @@ func (s *Store) GetRefundsByPayment(ctx context.Context, paymentID string) ([]mo
 	err := s.db.SelectContext(ctx, &refunds,
 		"SELECT * FROM refunds WHERE payment_id = $1 ORDER BY created_at DESC", paymentID)
 	return refunds, err
+}
+
+func (s *Store) GetRefundTotalByPayment(ctx context.Context, paymentID string) (string, error) {
+	var total string
+	err := s.db.GetContext(ctx, &total,
+		"SELECT COALESCE(SUM(amount::numeric), 0)::text FROM refunds WHERE payment_id = $1 AND status != 'failed'", paymentID)
+	return total, err
 }
 
 func (s *Store) GetPendingRefunds(ctx context.Context) ([]models.Refund, error) {

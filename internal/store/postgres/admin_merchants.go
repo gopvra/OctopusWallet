@@ -17,8 +17,8 @@ func (s *Store) ListMerchants(ctx context.Context, filter store.MerchantFilter) 
 	argIdx := 1
 
 	if filter.Search != "" {
-		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR email ILIKE $%d)", argIdx, argIdx))
-		args = append(args, "%"+filter.Search+"%")
+		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d ESCAPE '\\' OR email ILIKE $%d ESCAPE '\\')", argIdx, argIdx))
+		args = append(args, "%"+store.EscapeSearch(filter.Search)+"%")
 		argIdx++
 	}
 	if filter.IsActive != nil {

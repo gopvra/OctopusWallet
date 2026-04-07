@@ -27,8 +27,8 @@ func (s *Store) ListWallets(ctx context.Context, filter store.WalletFilter) (*st
 		argIdx++
 	}
 	if filter.Search != "" {
-		conditions = append(conditions, fmt.Sprintf("address ILIKE $%d", argIdx))
-		args = append(args, "%"+filter.Search+"%")
+		conditions = append(conditions, fmt.Sprintf("address ILIKE $%d ESCAPE '\\'", argIdx))
+		args = append(args, "%"+store.EscapeSearch(filter.Search)+"%")
 		argIdx++
 	}
 

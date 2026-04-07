@@ -8,28 +8,61 @@ interface PaymentUpdate {
   amount_received?: string;
 }
 
+const MAX_RETRIES = 5;
+
 export function usePaymentStatus(paymentId: string) {
   const [status, setStatus] = useState<PaymentUpdate | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const retriesRef = useRef(0);
 
   useEffect(() => {
     if (!paymentId) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/payments/${paymentId}`);
-    wsRef.current = ws;
+    let unmounted = false;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as PaymentUpdate;
-        setStatus(data);
-      } catch {}
-    };
+    function connect() {
+      if (unmounted) return;
 
-    ws.onerror = () => ws.close();
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/payments/${paymentId}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        retriesRef.current = 0; // reset on successful connect
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as PaymentUpdate;
+          setStatus(data);
+          // Stop reconnecting if payment is terminal
+          if (data.status === 'completed' || data.status === 'expired') {
+            retriesRef.current = MAX_RETRIES;
+          }
+        } catch { /* ignore malformed messages */ }
+      };
+
+      ws.onclose = () => {
+        if (unmounted) return;
+        if (retriesRef.current < MAX_RETRIES) {
+          const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 16000);
+          retriesRef.current++;
+          reconnectTimer = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
 
     return () => {
-      ws.close();
+      unmounted = true;
+      clearTimeout(reconnectTimer);
+      wsRef.current?.close();
       wsRef.current = null;
     };
   }, [paymentId]);

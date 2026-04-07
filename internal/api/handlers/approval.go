@@ -50,6 +50,12 @@ func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 		}
 	}
 
+	// Prevent bypass: if auto-release is enabled, threshold must be > 0
+	if req.Enabled && req.AutoRelease && (req.ApprovalThreshold == "0" || req.ApprovalThreshold == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "approval_threshold must be greater than 0 when auto_release is enabled"})
+		return
+	}
+
 	merchantID := c.GetString("merchant_id")
 	cfg := &models.ApprovalConfig{
 		MerchantID:        merchantID,
@@ -161,12 +167,21 @@ func (h *ApprovalHandler) RejectPayout(c *gin.Context) {
 		ApproverID:   req.ApproverID,
 		ApproverNote: req.Note,
 	}
-	h.store.CreatePayoutApproval(c.Request.Context(), approval)
+	if err := h.store.CreatePayoutApproval(c.Request.Context(), approval); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create rejection record"})
+		return
+	}
 
 	// Update payout
-	h.store.UpdatePayoutApprovalStatus(c.Request.Context(), payoutID, models.ApprovalStatusRejected)
+	if err := h.store.UpdatePayoutApprovalStatus(c.Request.Context(), payoutID, models.ApprovalStatusRejected); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payout approval status"})
+		return
+	}
 	errMsg := "rejected by " + req.ApproverID
-	h.store.UpdatePayoutStatus(c.Request.Context(), payoutID, models.PayoutStatusRejected, nil, &errMsg)
+	if err := h.store.UpdatePayoutStatus(c.Request.Context(), payoutID, models.PayoutStatusRejected, nil, &errMsg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payout status"})
+		return
+	}
 
 	h.sendApprovalWebhook(c, payout, models.ApprovalStatusRejected, req.ApproverID)
 
