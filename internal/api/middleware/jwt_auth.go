@@ -28,6 +28,12 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
+		// Reject refresh tokens used as access tokens
+		if claims.Issuer != "octopus-admin" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token type"})
+			return
+		}
+
 		c.Set("admin_user_id", claims.UserID)
 		c.Set("admin_username", claims.Username)
 		c.Set("admin_role", claims.Role)

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
@@ -45,18 +44,18 @@ func (s *Store) GetDashboardStats(ctx context.Context) (*store.DashboardStats, e
 }
 
 func (s *Store) GetVolumeChart(ctx context.Context, days int) ([]store.VolumePoint, error) {
-	query := fmt.Sprintf(`
+	query := `
 		SELECT
 			date_trunc('day', created_at)::date::text AS date,
 			COUNT(*) AS count,
 			COALESCE(SUM(amount_received::numeric), 0)::text AS volume
 		FROM payments
-		WHERE created_at >= now() - interval '%d days'
+		WHERE created_at >= now() - make_interval(days => $1)
 		GROUP BY date_trunc('day', created_at)::date
-		ORDER BY date`, days)
+		ORDER BY date`
 
 	var points []store.VolumePoint
-	err := s.db.SelectContext(ctx, &points, query)
+	err := s.db.SelectContext(ctx, &points, query, days)
 	if points == nil {
 		points = []store.VolumePoint{}
 	}
@@ -82,16 +81,16 @@ func (s *Store) GetChainDistribution(ctx context.Context) ([]store.ChainDistribu
 }
 
 func (s *Store) GetRecentActivity(ctx context.Context, limit int) ([]store.RecentActivity, error) {
-	query := fmt.Sprintf(`
+	query := `
 		(SELECT id, 'payment' AS type, chain, amount_expected AS amount, status, created_at
-		 FROM payments ORDER BY created_at DESC LIMIT %d)
+		 FROM payments ORDER BY created_at DESC LIMIT $1)
 		UNION ALL
 		(SELECT id, 'payout' AS type, chain, amount, status, created_at
-		 FROM payouts ORDER BY created_at DESC LIMIT %d)
-		ORDER BY created_at DESC LIMIT %d`, limit, limit, limit)
+		 FROM payouts ORDER BY created_at DESC LIMIT $1)
+		ORDER BY created_at DESC LIMIT $1`
 
 	var activity []store.RecentActivity
-	err := s.db.SelectContext(ctx, &activity, query)
+	err := s.db.SelectContext(ctx, &activity, query, limit)
 	if activity == nil {
 		activity = []store.RecentActivity{}
 	}

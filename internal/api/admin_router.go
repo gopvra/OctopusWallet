@@ -5,6 +5,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"golang.org/x/time/rate"
 )
 
 func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret string, allowedOrigins []string) {
@@ -19,9 +20,11 @@ func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret stri
 
 	admin := r.Group("/api/admin/v1")
 	admin.Use(middleware.CORS(allowedOrigins))
+	admin.Use(middleware.SecurityHeaders())
 
-	// Public admin endpoints
-	admin.POST("/auth/login", authHandler.Login)
+	// Public admin endpoints (with strict rate limiting on login)
+	loginRL := middleware.NewRateLimiter(rate.Limit(5.0/60.0), 5) // 5 per minute
+	admin.POST("/auth/login", loginRL.Middleware(), authHandler.Login)
 	admin.POST("/auth/refresh", authHandler.Refresh)
 
 	// Authenticated admin endpoints

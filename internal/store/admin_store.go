@@ -22,7 +22,7 @@ func (p *PaginationParams) Normalize() {
 	if p.PerPage < 1 || p.PerPage > 100 {
 		p.PerPage = 20
 	}
-	if p.Order != "asc" {
+	if p.Order != "asc" && p.Order != "desc" {
 		p.Order = "desc"
 	}
 }
