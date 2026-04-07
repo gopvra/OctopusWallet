@@ -168,14 +168,12 @@ func RequestHMAC() gin.HandlerFunc {
 		type apiKeyHolder interface {
 			GetAPIKeyHash() string
 		}
-		var secret string
-		if m, ok := merchant.(apiKeyHolder); ok {
-			secret = m.GetAPIKeyHash()
-		} else {
-			// Fallback: use merchant_id as part of key derivation
-			mid, _ := c.Get("merchant_id")
-			secret = mid.(string)
+		m, ok := merchant.(apiKeyHolder)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "merchant context missing for request signing"})
+			return
 		}
+		secret := m.GetAPIKeyHash()
 
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write([]byte(c.Request.Method))

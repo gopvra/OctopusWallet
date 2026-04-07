@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -32,6 +33,10 @@ func (h *AdminPaymentHandler) List(c *gin.Context) {
 
 func (h *AdminPaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	payment, err := h.store.AdminGetPaymentByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})

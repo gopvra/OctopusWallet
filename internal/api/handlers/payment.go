@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,15 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 	}
 
 	merchantID := c.GetString("merchant_id")
+
+	// Validate redirect_url if provided (prevent open redirect / javascript: URLs)
+	if req.RedirectURL != "" {
+		u, err := url.Parse(req.RedirectURL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "redirect_url must be a valid http or https URL"})
+			return
+		}
+	}
 
 	// Validate amount
 	if err := crypto.ValidateAmount(req.Amount); err != nil {

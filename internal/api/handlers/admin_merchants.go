@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -32,6 +33,10 @@ func (h *AdminMerchantHandler) List(c *gin.Context) {
 
 func (h *AdminMerchantHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	merchant, err := h.store.AdminGetMerchantByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "merchant not found"})
@@ -42,6 +47,10 @@ func (h *AdminMerchantHandler) GetByID(c *gin.Context) {
 
 func (h *AdminMerchantHandler) Update(c *gin.Context) {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	var req struct {
 		Name       string `json:"name" binding:"required"`
 		Email      string `json:"email" binding:"required,email"`
@@ -61,6 +70,10 @@ func (h *AdminMerchantHandler) Update(c *gin.Context) {
 
 func (h *AdminMerchantHandler) ToggleActive(c *gin.Context) {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	if err := h.store.ToggleMerchantActive(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to toggle merchant"})
 		return

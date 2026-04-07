@@ -28,8 +28,9 @@ func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret stri
 
 	// Public admin endpoints (with strict rate limiting on login)
 	loginRL := middleware.NewRateLimiter(rate.Limit(5.0/60.0), 5) // 5 per minute
+	refreshRL := middleware.NewRateLimiter(rate.Limit(10.0/60.0), 10) // 10 per minute
 	admin.POST("/auth/login", loginRL.Middleware(), authHandler.Login)
-	admin.POST("/auth/refresh", authHandler.Refresh)
+	admin.POST("/auth/refresh", refreshRL.Middleware(), authHandler.Refresh)
 
 	// Authenticated admin endpoints
 	protected := admin.Group("")

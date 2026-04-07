@@ -19,7 +19,7 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	})
 
 	// WebSocket for real-time payment status
-	r.GET("/ws/payments/:id", HandleWebSocket(hub))
+	r.GET("/ws/payments/:id", HandleWebSocket(hub, cfg.Admin.AllowedOrigins))
 
 	// Serve frontend static files (if built)
 	r.Static("/static", "./web/dist/assets")
