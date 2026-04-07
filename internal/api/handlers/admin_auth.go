@@ -9,6 +9,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// dummyHash is used for constant-time login to prevent username enumeration
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing"), bcrypt.DefaultCost)
+
 type AdminAuthHandler struct {
 	store     store.AdminStore
 	jwtSecret string
@@ -26,12 +29,14 @@ type LoginRequest struct {
 func (h *AdminAuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
 	user, err := h.store.GetAdminUserByUsername(c.Request.Context(), req.Username)
 	if err != nil {
+		// Constant-time: run bcrypt even for non-existent users to prevent timing attacks
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(req.Password))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
@@ -58,7 +63,7 @@ func (h *AdminAuthHandler) Refresh(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
@@ -74,7 +79,14 @@ func (h *AdminAuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	tokens, err := auth.GenerateTokenPair(h.jwtSecret, claims.UserID, claims.Username, claims.Role)
+	// Verify user still exists and is active
+	user, err := h.store.GetAdminUserByID(c.Request.Context(), claims.UserID)
+	if err != nil || !user.IsActive {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user account is no longer active"})
+		return
+	}
+
+	tokens, err := auth.GenerateTokenPair(h.jwtSecret, user.ID, user.Username, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return

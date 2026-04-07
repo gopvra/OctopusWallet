@@ -4,10 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func isValidUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
+}
 
 type AdminUserHandler struct {
 	store store.AdminStore
@@ -71,6 +77,10 @@ type UpdateAdminUserRequest struct {
 
 func (h *AdminUserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
+	if !isValidUUID(id) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
 
 	var req UpdateAdminUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -112,6 +122,10 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 
 func (h *AdminUserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+	if !isValidUUID(id) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
 	currentUserID := c.GetString("admin_user_id")
 
 	// Prevent deleting yourself
