@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+
+database:
+  url: "postgres://octopus:octopus@localhost:5432/octopus_wallet?sslmode=disable"
+  max_open_conns: 25
+
+wallet:
+  master_seed: ""       # BIP-39 mnemonic - use env var OCTOPUS_WALLET_MASTER_SEED in production
+  encryption_key: ""    # 32-byte hex key - use env var OCTOPUS_WALLET_ENCRYPTION_KEY in production
+
+chains:
+  ethereum:
+    enabled: true
+    rpc_url: "https://mainnet.infura.io/v3/YOUR_KEY"
+    chain_id: 1
+    confirmations_required: 12
+    poll_interval: 15s
+  bsc:
+    enabled: true
+    rpc_url: "https://bsc-dataseed.binance.org"
+    chain_id: 56
+    confirmations_required: 15
+    poll_interval: 3s
+  polygon:
+    enabled: true
+    rpc_url: "https://polygon-rpc.com"
+    chain_id: 137
+    confirmations_required: 30
+    poll_interval: 2s
+  solana:
+    enabled: true
+    rpc_url: "https://api.mainnet-beta.solana.com"
+    confirmations_required: 31
+    poll_interval: 2s
+  tron:
+    enabled: true
+    rpc_url: "https://api.trongrid.io"
+    api_key: ""
+    confirmations_required: 19
+    poll_interval: 3s
+  bitcoin:
+    enabled: true
+    rpc_url: "http://localhost:8332"
+    rpc_user: ""
+    rpc_pass: ""
+    network: "mainnet"
+    confirmations_required: 6
+    poll_interval: 60s
+
+webhook:
+  max_retries: 5
+  retry_backoff: 30s
+  timeout: 10s
