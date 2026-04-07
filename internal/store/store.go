@@ -103,6 +103,20 @@ type Store interface {
 	GetPaymentsByMerchant(ctx context.Context, merchantID string, limit, offset int) ([]models.Payment, error)
 	GetPayoutsByMerchant(ctx context.Context, merchantID string, limit, offset int) ([]models.Payout, error)
 
+	// Payment Links
+	CreatePaymentLink(ctx context.Context, link *models.PaymentLink) error
+	GetPaymentLinkByID(ctx context.Context, id string) (*models.PaymentLink, error)
+	GetPaymentLinksByMerchant(ctx context.Context, merchantID string) ([]models.PaymentLink, error)
+	IncrementPaymentLinkUses(ctx context.Context, id string) error
+
+	// Audit Logs
+	CreateAuditLog(ctx context.Context, log *models.AuditLog) error
+	GetAuditLogs(ctx context.Context, merchantID string, limit, offset int) ([]models.AuditLog, error)
+
+	// Export
+	GetPaymentsByMerchantDateRange(ctx context.Context, merchantID, from, to string) ([]models.Payment, error)
+	GetPayoutsByMerchantDateRange(ctx context.Context, merchantID, from, to string) ([]models.Payout, error)
+
 	// Lifecycle
 	Close() error
 }

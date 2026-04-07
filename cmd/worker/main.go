@@ -17,6 +17,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/gasstation"
 	"github.com/octopuswallet/octopuswallet/internal/monitor"
 	"github.com/octopuswallet/octopuswallet/internal/payout"
+	"github.com/octopuswallet/octopuswallet/internal/refund"
 	"github.com/octopuswallet/octopuswallet/internal/store/postgres"
 	"github.com/octopuswallet/octopuswallet/internal/sweep"
 	"github.com/octopuswallet/octopuswallet/internal/wallet"
@@ -69,6 +70,9 @@ func main() {
 	// Cold wallet service
 	coldSvc := coldwallet.NewService(store, registry, webhookSvc, seed, cfg.Chains)
 
+	// Refund processing service
+	refundSvc := refund.NewService(store, registry, webhookSvc, seed, cfg.Chains)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -77,6 +81,7 @@ func main() {
 	go sweepSvc.Start(ctx)
 	go gasSvc.Start(ctx)
 	go coldSvc.Start(ctx)
+	go refundSvc.Start(ctx)
 
 	slog.Info("worker started", "chains", registry.Names())
 

@@ -80,6 +80,9 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 		return
 	}
 
+	// Record daily total for limit enforcement
+	h.store.IncrementDailyPayoutTotal(c.Request.Context(), merchantID, req.Chain, req.Amount)
+
 	// Send webhook
 	if approvalStatus == models.ApprovalStatusPendingApproval {
 		h.sendPendingApprovalWebhook(c, payout)

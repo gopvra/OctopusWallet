@@ -53,7 +53,7 @@ export function CheckoutPage() {
   const { id } = useParams<{ id: string }>();
   const [payment, setPayment] = useState<Payment | null>(null);
   const [error, setError] = useState('');
-  const wsStatus = usePaymentStatus(id || '');
+  const { status: wsStatus } = usePaymentStatus(id || '');
 
   useEffect(() => {
     if (!id) return;

@@ -91,7 +91,7 @@ func (s *Service) processPayout(ctx context.Context, payout *models.Payout) {
 	}
 
 	// Derive private key
-	merchantIndex := merchantIDToIndex(payout.MerchantID)
+	merchantIndex := crypto.MerchantIDToIndex(payout.MerchantID)
 	privKey, err := chainImpl.DerivePrivateKey(s.seed, merchantIndex, uint32(sourceWallet.DerivationIndex))
 	if err != nil {
 		errMsg := "failed to derive private key: " + err.Error()
@@ -116,6 +116,7 @@ func (s *Service) processPayout(ctx context.Context, payout *models.Payout) {
 	}
 
 	s.store.UpdatePayoutStatus(ctx, payout.ID, models.PayoutStatusCompleted, &txHash, nil)
+	s.store.UpdateMerchantBalance(ctx, payout.MerchantID, payout.Chain, payout.Token, "-"+payout.Amount, "0")
 	s.sendPayoutWebhook(ctx, payout, models.PayoutStatusCompleted, txHash, "")
 	slog.Info("payout completed", "payout_id", payout.ID, "tx_hash", txHash)
 }
@@ -150,10 +151,3 @@ func (s *Service) sendPayoutWebhook(ctx context.Context, payout *models.Payout, 
 	}()
 }
 
-func merchantIDToIndex(id string) uint32 {
-	var sum uint32
-	for _, b := range []byte(id) {
-		sum = sum*31 + uint32(b)
-	}
-	return sum & 0x7FFFFFFF
-}

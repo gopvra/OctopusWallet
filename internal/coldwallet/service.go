@@ -135,7 +135,7 @@ func (s *Service) processHotToCold(ctx context.Context, transfer *models.WalletT
 		return
 	}
 
-	merchantIndex := merchantIDToIndex(transfer.MerchantID)
+	merchantIndex := crypto.MerchantIDToIndex(transfer.MerchantID)
 	privKey, err := chainImpl.DerivePrivateKey(s.seed, merchantIndex, uint32(wallet.DerivationIndex))
 	if err != nil {
 		errMsg := "failed to derive key: " + err.Error()
@@ -190,10 +190,3 @@ func (s *Service) sendTransferWebhook(ctx context.Context, transfer *models.Wall
 	go s.webhook.Send(ctx, merchant.WebhookURL, merchant.APIKeyHash, eventType, data)
 }
 
-func merchantIDToIndex(id string) uint32 {
-	var sum uint32
-	for _, b := range []byte(id) {
-		sum = sum*31 + uint32(b)
-	}
-	return sum & 0x7FFFFFFF
-}

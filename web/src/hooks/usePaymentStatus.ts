@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 interface PaymentUpdate {
   payment_id: string;
@@ -12,10 +12,11 @@ const MAX_RETRIES = 5;
 
 export function usePaymentStatus(paymentId: string) {
   const [status, setStatus] = useState<PaymentUpdate | null>(null);
+  const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const retriesRef = useRef(0);
 
-  useEffect(() => {
+  const connect = useCallback(() => {
     if (!paymentId) return;
 
     let unmounted = false;
@@ -59,13 +60,15 @@ export function usePaymentStatus(paymentId: string) {
 
     connect();
 
+  useEffect(() => {
+    connect();
     return () => {
       unmounted = true;
       clearTimeout(reconnectTimer);
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [paymentId]);
+  }, [connect]);
 
-  return status;
+  return { status, connected };
 }
