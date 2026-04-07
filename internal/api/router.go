@@ -9,7 +9,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func NewRouter(s store.Store, registry *chain.Registry, seed []byte) *gin.Engine {
+func NewRouter(s store.Store, registry *chain.Registry, seed []byte, adminStore store.AdminStore, adminJWTSecret string, adminAllowedOrigins []string) *gin.Engine {
 	r := gin.Default()
 
 	// Health check
@@ -44,6 +44,11 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte) *gin.Engine
 		auth.POST("/payouts/create", payoutHandler.CreatePayout)
 		auth.GET("/payouts/:id", payoutHandler.GetPayout)
 		auth.GET("/wallets", walletHandler.List)
+	}
+
+	// Admin routes
+	if adminStore != nil {
+		SetupAdminRoutes(r, adminStore, adminJWTSecret, adminAllowedOrigins)
 	}
 
 	return r
