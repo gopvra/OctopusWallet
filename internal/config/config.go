@@ -81,10 +81,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("webhook.retry_backoff", "30s")
 	v.SetDefault("webhook.timeout", "10s")
 	v.SetDefault("gas_station.enabled", false)
-	v.SetDefault("admin.jwt_secret", "octopus-admin-secret-change-me")
+	v.SetDefault("admin.jwt_secret", "")
 	v.SetDefault("admin.default_user", "admin")
-	v.SetDefault("admin.default_pass", "changeme")
-	v.SetDefault("admin.allowed_origins", []string{"*"})
+	v.SetDefault("admin.default_pass", "")
+	v.SetDefault("admin.allowed_origins", []string{"http://localhost:5173"})
 
 	if path != "" {
 		v.SetConfigFile(path)

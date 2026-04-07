@@ -76,13 +76,19 @@ export function CheckoutPage() {
     }
   }, [wsStatus]);
 
-  // Redirect on completion
+  // Redirect on completion (validate URL to prevent open redirect)
   useEffect(() => {
     if (payment?.status === 'completed' && payment.redirect_url) {
-      const timer = setTimeout(() => {
-        window.location.href = payment.redirect_url;
-      }, 3000);
-      return () => clearTimeout(timer);
+      try {
+        const url = new URL(payment.redirect_url);
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
+        const timer = setTimeout(() => {
+          window.location.href = url.toString();
+        }, 3000);
+        return () => clearTimeout(timer);
+      } catch {
+        // Invalid URL — do not redirect
+      }
     }
   }, [payment?.status, payment?.redirect_url]);
 

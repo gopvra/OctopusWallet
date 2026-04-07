@@ -35,7 +35,7 @@ func (h *AdminUserHandler) List(c *gin.Context) {
 type CreateAdminUserRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Password string `json:"password" binding:"required,min=12,max=128"`
 	Role     string `json:"role" binding:"required,oneof=admin super_admin"`
 }
 
@@ -100,8 +100,8 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 	user.IsActive = req.IsActive
 
 	if req.Password != "" {
-		if len(req.Password) < 8 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
+		if len(req.Password) < 12 || len(req.Password) > 128 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be 12-128 characters"})
 			return
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)

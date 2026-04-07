@@ -50,6 +50,15 @@ func main() {
 	registry := chain.NewRegistry()
 	initChains(cfg, registry)
 
+	// Validate admin config
+	if cfg.Admin.JWTSecret == "" {
+		slog.Error("FATAL: admin.jwt_secret is not configured. Set OCTOPUS_ADMIN_JWT_SECRET or admin.jwt_secret in config.")
+		os.Exit(1)
+	}
+	if len(cfg.Admin.JWTSecret) < 32 {
+		slog.Warn("admin.jwt_secret is shorter than 32 characters — consider using a stronger secret")
+	}
+
 	// Initialize admin: seed default admin user if none exists
 	initAdminUser(store, cfg)
 
