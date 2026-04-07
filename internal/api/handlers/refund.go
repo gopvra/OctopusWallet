@@ -76,16 +76,6 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 		return
 	}
 
-	// Validate refund amount does not exceed payment received
-	refundAmt := new(big.Int)
-	refundAmt.SetString(req.Amount, 10)
-	receivedAmt := new(big.Int)
-	receivedAmt.SetString(payment.AmountReceived, 10)
-	if refundAmt.Cmp(receivedAmt) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "refund amount exceeds payment received"})
-		return
-	}
-
 	refund := &models.Refund{
 		PaymentID:  req.PaymentID,
 		MerchantID: merchantID,

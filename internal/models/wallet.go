@@ -3,10 +3,10 @@ package models
 import "time"
 
 type Wallet struct {
-	ID              string    `db:"id" json:"id"`
-	MerchantID      string    `db:"merchant_id" json:"merchant_id"`
-	Chain           string    `db:"chain" json:"chain"`
-	Address         string    `db:"address" json:"address"`
-	DerivationIndex int       `db:"derivation_index" json:"derivation_index"`
-	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	ID              string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	MerchantID      string    `gorm:"type:uuid;index;not null" json:"merchant_id"`
+	Chain           string    `gorm:"not null" json:"chain"`
+	Address         string    `gorm:"not null;index" json:"address"`
+	DerivationIndex int       `gorm:"not null" json:"derivation_index"`
+	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 }

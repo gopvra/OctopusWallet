@@ -88,16 +88,11 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 		}
 
 		payout := &models.Payout{
-			MerchantID:     merchantID,
-			Chain:          req.Chain,
-			Token:          req.Token,
-			ToAddress:      item.ToAddress,
-			Amount:         item.Amount,
-			ApprovalStatus: approvalStatus,
-		}
-		if err := h.store.CreatePayout(c.Request.Context(), payout); err != nil {
-			failedItems++
-			continue
+			MerchantID: merchantID,
+			Chain:      req.Chain,
+			Token:      req.Token,
+			ToAddress:  item.ToAddress,
+			Amount:     item.Amount,
 		}
 		if err := h.store.CreatePayout(c.Request.Context(), payout); err != nil {
 			failedItems = append(failedItems, i)

@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -12,33 +10,21 @@ import (
 func (s *Store) ListWallets(ctx context.Context, filter store.WalletFilter) (*store.PaginatedResult[models.Wallet], error) {
 	filter.Normalize()
 
-	var conditions []string
-	var args []interface{}
-	argIdx := 1
+	query := s.db.WithContext(ctx).Model(&models.Wallet{})
 
 	if filter.Chain != "" {
-		conditions = append(conditions, fmt.Sprintf("chain = $%d", argIdx))
-		args = append(args, filter.Chain)
-		argIdx++
+		query = query.Where("chain = ?", filter.Chain)
 	}
 	if filter.MerchantID != "" {
-		conditions = append(conditions, fmt.Sprintf("merchant_id = $%d", argIdx))
-		args = append(args, filter.MerchantID)
-		argIdx++
+		query = query.Where("merchant_id = ?", filter.MerchantID)
 	}
 	if filter.Search != "" {
-		conditions = append(conditions, fmt.Sprintf("address ILIKE $%d ESCAPE '\\'", argIdx))
-		args = append(args, "%"+store.EscapeSearch(filter.Search)+"%")
-		argIdx++
+		pattern := "%" + store.EscapeSearch(filter.Search) + "%"
+		query = query.Where("address ILIKE ? ESCAPE '\\'", pattern)
 	}
 
-	where := ""
-	if len(conditions) > 0 {
-		where = "WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	var total int
-	if err := s.db.GetContext(ctx, &total, fmt.Sprintf("SELECT COUNT(*) FROM wallets %s", where), args...); err != nil {
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
@@ -48,21 +34,19 @@ func (s *Store) ListWallets(ctx context.Context, filter store.WalletFilter) (*st
 		sortCol = filter.Sort
 	}
 
-	query := fmt.Sprintf("SELECT * FROM wallets %s ORDER BY %s %s LIMIT $%d OFFSET $%d",
-		where, sortCol, filter.Order, argIdx, argIdx+1)
-	args = append(args, filter.PerPage, filter.Offset())
-
 	var wallets []models.Wallet
-	if err := s.db.SelectContext(ctx, &wallets, query, args...); err != nil {
+	if err := query.Order(sortCol + " " + filter.Order).
+		Limit(filter.PerPage).Offset(filter.Offset()).
+		Find(&wallets).Error; err != nil {
 		return nil, err
 	}
 	if wallets == nil {
 		wallets = []models.Wallet{}
 	}
 
-	totalPages := (total + filter.PerPage - 1) / filter.PerPage
+	totalPages := (int(total) + filter.PerPage - 1) / filter.PerPage
 	return &store.PaginatedResult[models.Wallet]{
 		Data: wallets,
-		Meta: store.Meta{Page: filter.Page, PerPage: filter.PerPage, Total: total, TotalPages: totalPages},
+		Meta: store.Meta{Page: filter.Page, PerPage: filter.PerPage, Total: int(total), TotalPages: totalPages},
 	}, nil
 }

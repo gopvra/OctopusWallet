@@ -14,6 +14,13 @@ type Config struct {
 	Webhook    WebhookConfig                   `mapstructure:"webhook"`
 	GasStation GasStationConfig                `mapstructure:"gas_station"`
 	Admin      AdminConfig                     `mapstructure:"admin"`
+	Redis      RedisConfig                     `mapstructure:"redis"`
+}
+
+type RedisConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
 }
 
 type AdminConfig struct {
@@ -81,6 +88,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("webhook.retry_backoff", "30s")
 	v.SetDefault("webhook.timeout", "10s")
 	v.SetDefault("gas_station.enabled", false)
+	v.SetDefault("redis.addr", "localhost:6379")
+	v.SetDefault("redis.password", "")
+	v.SetDefault("redis.db", 0)
 	v.SetDefault("admin.jwt_secret", "")
 	v.SetDefault("admin.default_user", "admin")
 	v.SetDefault("admin.default_pass", "")
