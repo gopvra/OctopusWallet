@@ -2,6 +2,7 @@ package gasstation
 
 import (
 	"context"
+	"encoding/hex"
 	"log/slog"
 	"math/big"
 	"time"
@@ -95,7 +96,12 @@ func (s *Service) processDeposit(ctx context.Context, deposit *models.GasDeposit
 	s.store.UpdateGasDepositStatus(ctx, deposit.ID, models.GasDepositStatusProcessing, nil, nil)
 
 	// Send gas from station
-	privKeyBytes := hexToBytes(chainCfg.StationPrivateKey)
+	privKeyBytes, err := hexToBytes(chainCfg.StationPrivateKey)
+	if err != nil {
+		errMsg := "invalid gas station private key: " + err.Error()
+		s.store.UpdateGasDepositStatus(ctx, deposit.ID, models.GasDepositStatusFailed, nil, &errMsg)
+		return
+	}
 	txHash, err := chainImpl.SendTransaction(ctx, chain.SendRequest{
 		FromAddress: chainCfg.StationAddress,
 		ToAddress:   deposit.ToAddress,
@@ -154,26 +160,9 @@ func (s *Service) checkBalances(ctx context.Context) {
 	}
 }
 
-func hexToBytes(hex string) []byte {
-	if len(hex) >= 2 && hex[:2] == "0x" {
-		hex = hex[2:]
+func hexToBytes(hexStr string) ([]byte, error) {
+	if len(hexStr) >= 2 && hexStr[:2] == "0x" {
+		hexStr = hexStr[2:]
 	}
-	b := make([]byte, len(hex)/2)
-	for i := 0; i < len(b); i++ {
-		b[i] = hexCharToByte(hex[2*i])<<4 | hexCharToByte(hex[2*i+1])
-	}
-	return b
-}
-
-func hexCharToByte(c byte) byte {
-	switch {
-	case c >= '0' && c <= '9':
-		return c - '0'
-	case c >= 'a' && c <= 'f':
-		return c - 'a' + 10
-	case c >= 'A' && c <= 'F':
-		return c - 'A' + 10
-	default:
-		return 0
-	}
+	return hex.DecodeString(hexStr)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type PayoutHandler struct {
@@ -38,7 +39,19 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 
 	// Validate chain exists
 	if _, err := h.registry.Get(req.Chain); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain: " + req.Chain})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		return
+	}
+
+	// Validate amount is positive integer
+	if err := crypto.ValidateAmount(req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate address format
+	if err := crypto.ValidateAddress(req.Chain, req.ToAddress); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

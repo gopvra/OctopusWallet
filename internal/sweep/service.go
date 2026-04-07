@@ -12,6 +12,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type Service struct {
@@ -137,6 +138,8 @@ func (s *Service) processSweep(ctx context.Context, task *models.SweepTask) {
 		s.store.UpdateSweepTaskStatus(ctx, task.ID, models.SweepStatusFailed, nil, &errMsg)
 		return
 	}
+
+	defer crypto.ZeroBytes(privKey)
 
 	s.store.UpdateSweepTaskStatus(ctx, task.ID, models.SweepStatusProcessing, nil, nil)
 

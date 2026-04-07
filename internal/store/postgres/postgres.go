@@ -157,10 +157,20 @@ func (s *Store) GetPaymentByAddress(ctx context.Context, chain, address string) 
 }
 
 func (s *Store) UpdatePaymentStatus(ctx context.Context, id, status string, txHash *string, confirmations int) error {
-	_, err := s.db.ExecContext(ctx,
-		"UPDATE payments SET status = $1, tx_hash = $2, confirmations = $3, updated_at = now() WHERE id = $4",
+	// Use conditional update to prevent race conditions:
+	// Only update if current status allows the transition
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE payments SET status = $1, tx_hash = COALESCE($2, tx_hash), confirmations = $3, updated_at = now()
+		 WHERE id = $4 AND status NOT IN ('completed', 'expired')`,
 		status, txHash, confirmations, id)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("payment %s already in terminal state", id)
+	}
+	return nil
 }
 
 // --- Payouts ---
@@ -184,9 +194,15 @@ func (s *Store) GetPayoutByID(ctx context.Context, id string) (*models.Payout, e
 }
 
 func (s *Store) GetPendingPayouts(ctx context.Context) ([]models.Payout, error) {
+	// Atomically claim pending payouts to prevent double-processing
 	var payouts []models.Payout
 	err := s.db.SelectContext(ctx, &payouts,
-		"SELECT * FROM payouts WHERE status = 'pending' AND (approval_status = '' OR approval_status = 'approved') ORDER BY created_at")
+		`UPDATE payouts SET status = 'processing', updated_at = now()
+		 WHERE id IN (
+		   SELECT id FROM payouts
+		   WHERE status = 'pending' AND (approval_status = '' OR approval_status = 'approved')
+		   ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED
+		 ) RETURNING *`)
 	return payouts, err
 }
 
@@ -259,7 +275,12 @@ func (s *Store) CreateSweepTask(ctx context.Context, task *models.SweepTask) err
 func (s *Store) GetPendingSweepTasks(ctx context.Context) ([]models.SweepTask, error) {
 	var tasks []models.SweepTask
 	err := s.db.SelectContext(ctx, &tasks,
-		"SELECT * FROM sweep_tasks WHERE status IN ('pending', 'gas_needed') ORDER BY created_at")
+		`SELECT * FROM sweep_tasks
+		 WHERE id IN (
+		   SELECT id FROM sweep_tasks
+		   WHERE status IN ('pending', 'gas_needed')
+		   ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED
+		 )`)
 	return tasks, err
 }
 
@@ -332,7 +353,11 @@ func (s *Store) CreateWalletTransfer(ctx context.Context, transfer *models.Walle
 func (s *Store) GetPendingWalletTransfers(ctx context.Context) ([]models.WalletTransfer, error) {
 	var transfers []models.WalletTransfer
 	err := s.db.SelectContext(ctx, &transfers,
-		"SELECT * FROM wallet_transfers WHERE status = 'pending' ORDER BY created_at")
+		`UPDATE wallet_transfers SET status = 'processing', updated_at = now()
+		 WHERE id IN (
+		   SELECT id FROM wallet_transfers WHERE status = 'pending'
+		   ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED
+		 ) RETURNING *`)
 	return transfers, err
 }
 
@@ -424,7 +449,11 @@ func (s *Store) CreateGasDeposit(ctx context.Context, deposit *models.GasDeposit
 func (s *Store) GetPendingGasDeposits(ctx context.Context) ([]models.GasDeposit, error) {
 	var deposits []models.GasDeposit
 	err := s.db.SelectContext(ctx, &deposits,
-		"SELECT * FROM gas_deposits WHERE status = 'pending' ORDER BY created_at")
+		`UPDATE gas_deposits SET status = 'processing', updated_at = now()
+		 WHERE id IN (
+		   SELECT id FROM gas_deposits WHERE status = 'pending'
+		   ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED
+		 ) RETURNING *`)
 	return deposits, err
 }
 

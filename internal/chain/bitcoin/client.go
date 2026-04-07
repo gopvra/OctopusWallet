@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -51,12 +52,12 @@ func (c *Client) GetBalance(ctx context.Context, address string, token string) (
 		// If address not in wallet, try scantxoutset
 		return "0", nil
 	}
-	var btcAmount float64
-	if err := json.Unmarshal(result, &btcAmount); err != nil {
+	// Parse as json.Number to avoid float64 precision loss
+	var btcStr json.Number
+	if err := json.Unmarshal(result, &btcStr); err != nil {
 		return "0", err
 	}
-	satoshi := int64(btcAmount * 1e8)
-	return fmt.Sprintf("%d", satoshi), nil
+	return btcToSatoshi(btcStr.String()), nil
 }
 
 func (c *Client) DeriveAddress(masterSeed []byte, merchantIndex, addressIndex uint32) (string, error) {
@@ -161,7 +162,7 @@ func (c *Client) ScanBlockForPayments(ctx context.Context, blockHeight uint64, w
 				Vout int    `json:"vout"`
 			} `json:"vin"`
 			Vout []struct {
-				Value        float64 `json:"value"`
+				Value        json.Number `json:"value"`
 				ScriptPubKey struct {
 					Address string `json:"address"`
 				} `json:"scriptPubKey"`
@@ -179,13 +180,11 @@ func (c *Client) ScanBlockForPayments(ctx context.Context, blockHeight uint64, w
 			if _, watched := watchAddresses[addr]; !watched {
 				continue
 			}
-			// Convert BTC to satoshi
-			satoshi := int64(vout.Value * 1e8)
 			txs = append(txs, chain.IncomingTx{
 				TxHash:      tx.TxID,
-				FromAddress: "", // UTXO model - sender requires input resolution
+				FromAddress: "",
 				ToAddress:   addr,
-				Amount:      fmt.Sprintf("%d", satoshi),
+				Amount:      btcToSatoshi(vout.Value.String()),
 				Token:       "",
 				BlockHeight: blockHeight,
 			})
@@ -229,13 +228,41 @@ func (c *Client) EstimateFee(ctx context.Context, req chain.SendRequest) (string
 		return "", err
 	}
 	var estimate struct {
-		FeeRate float64 `json:"feerate"`
+		FeeRate json.Number `json:"feerate"`
 	}
 	if err := json.Unmarshal(result, &estimate); err != nil {
 		return "", err
 	}
-	// Return fee rate in sat/vB (approximate for a standard tx ~250 vbytes)
-	satPerVB := int64(estimate.FeeRate * 1e8 / 1000)
-	fee := satPerVB * 250
-	return fmt.Sprintf("%d", fee), nil
+	// Approximate for a standard tx ~250 vbytes
+	feeRateSat := btcToSatoshi(estimate.FeeRate.String())
+	feeRate := new(big.Int)
+	feeRate.SetString(feeRateSat, 10)
+	fee := new(big.Int).Mul(feeRate, big.NewInt(250))
+	fee.Div(fee, big.NewInt(1000))
+	return fee.String(), nil
+}
+
+// btcToSatoshi converts a BTC decimal string to satoshi without float precision loss.
+func btcToSatoshi(btcStr string) string {
+	// Split on decimal point
+	parts := [2]string{btcStr, ""}
+	for i, c := range btcStr {
+		if c == '.' {
+			parts[0] = btcStr[:i]
+			parts[1] = btcStr[i+1:]
+			break
+		}
+	}
+	// Pad or truncate fractional part to 8 digits
+	frac := parts[1]
+	for len(frac) < 8 {
+		frac += "0"
+	}
+	frac = frac[:8]
+	// Combine and parse as integer
+	satStr := parts[0] + frac
+	// Remove leading zeros
+	result := new(big.Int)
+	result.SetString(satStr, 10)
+	return result.String()
 }
