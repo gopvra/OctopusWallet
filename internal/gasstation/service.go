@@ -102,6 +102,7 @@ func (s *Service) processDeposit(ctx context.Context, deposit *models.GasDeposit
 		s.store.UpdateGasDepositStatus(ctx, deposit.ID, models.GasDepositStatusFailed, nil, &errMsg)
 		return
 	}
+	defer zeroBytes(privKeyBytes)
 	txHash, err := chainImpl.SendTransaction(ctx, chain.SendRequest{
 		FromAddress: chainCfg.StationAddress,
 		ToAddress:   deposit.ToAddress,
@@ -157,6 +158,12 @@ func (s *Service) checkBalances(ctx context.Context) {
 			s.store.CreateGasAlert(ctx, alert)
 			slog.Warn("gas station low balance", "chain", chainName, "balance", balance, "threshold", chainCfg.LowBalanceAlert)
 		}
+	}
+}
+
+func zeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
 	}
 }
 

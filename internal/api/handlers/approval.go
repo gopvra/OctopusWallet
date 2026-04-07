@@ -9,6 +9,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type ApprovalHandler struct {
@@ -33,6 +34,20 @@ func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Validate amounts
+	for _, pair := range [][2]string{
+		{req.ApprovalThreshold, "approval_threshold"},
+		{req.SingleTxLimit, "single_tx_limit"},
+		{req.DailyLimit, "daily_limit"},
+	} {
+		if pair[0] != "" {
+			if err := crypto.ValidateAmountOrZero(pair[0]); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": pair[1] + ": " + err.Error()})
+				return
+			}
+		}
 	}
 
 	merchantID := c.GetString("merchant_id")

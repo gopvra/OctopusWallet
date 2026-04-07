@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type SweepHandler struct {
@@ -29,6 +30,18 @@ func (h *SweepHandler) SetCollectionAddress(c *gin.Context) {
 		return
 	}
 	merchantID := c.GetString("merchant_id")
+
+	if err := crypto.ValidateAddress(req.Chain, req.Address); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.SweepThreshold != "" {
+		if err := crypto.ValidateAmountOrZero(req.SweepThreshold); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "sweep_threshold: " + err.Error()})
+			return
+		}
+	}
+
 	addr := &models.MerchantCollectionAddress{
 		MerchantID:     merchantID,
 		Chain:          req.Chain,

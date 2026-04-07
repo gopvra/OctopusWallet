@@ -95,6 +95,7 @@ func (s *Service) processPendingSweeps(ctx context.Context) {
 		if task.Status == models.SweepStatusGasNeeded {
 			s.checkGasDeposit(ctx, &task)
 		} else {
+			// Status is already 'processing' from atomic claim
 			s.processSweep(ctx, &task)
 		}
 	}
@@ -141,7 +142,7 @@ func (s *Service) processSweep(ctx context.Context, task *models.SweepTask) {
 
 	defer crypto.ZeroBytes(privKey)
 
-	s.store.UpdateSweepTaskStatus(ctx, task.ID, models.SweepStatusProcessing, nil, nil)
+	// Status already set to 'processing' by atomic claim in GetPendingSweepTasks
 
 	txHash, err := chainImpl.SendTransaction(ctx, chain.SendRequest{
 		FromAddress: task.FromAddress,

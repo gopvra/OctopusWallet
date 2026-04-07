@@ -78,8 +78,13 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 
 func (h *RefundHandler) GetRefund(c *gin.Context) {
 	id := c.Param("id")
+	merchantID := c.GetString("merchant_id")
 	refund, err := h.store.GetRefundByID(c.Request.Context(), id)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "refund not found"})
+		return
+	}
+	if refund.MerchantID != merchantID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "refund not found"})
 		return
 	}
@@ -88,6 +93,13 @@ func (h *RefundHandler) GetRefund(c *gin.Context) {
 
 func (h *RefundHandler) ListRefundsByPayment(c *gin.Context) {
 	paymentID := c.Param("payment_id")
+	merchantID := c.GetString("merchant_id")
+	// Verify payment belongs to merchant
+	payment, err := h.store.GetPaymentByID(c.Request.Context(), paymentID)
+	if err != nil || payment.MerchantID != merchantID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
 	refunds, err := h.store.GetRefundsByPayment(c.Request.Context(), paymentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list refunds"})
