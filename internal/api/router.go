@@ -18,7 +18,9 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
 	})
 
+	// Security middleware
 	rl := middleware.NewRateLimiter(rate.Limit(100), 200)
+	idempotency := middleware.NewIdempotencyStore()
 
 	merchantHandler := handlers.NewMerchantHandler(s)
 	paymentHandler := handlers.NewPaymentHandler(s, registry, seed)
@@ -32,19 +34,22 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	v1 := r.Group("/api/v1")
 	v1.Use(rl.Middleware())
 
+	// Public endpoints
 	v1.POST("/merchants/register", merchantHandler.Register)
 
+	// Authenticated endpoints
 	auth := v1.Group("")
 	auth.Use(middleware.APIKeyAuth(s))
+	auth.Use(middleware.RequestHMAC()) // optional request signature validation
 	{
 		auth.GET("/merchants/profile", merchantHandler.GetProfile)
 
-		// Payments
-		auth.POST("/payments/create", paymentHandler.CreatePayment)
+		// Payments (with idempotency)
+		auth.POST("/payments/create", idempotency.Middleware(), paymentHandler.CreatePayment)
 		auth.GET("/payments/:id", paymentHandler.GetPayment)
 
-		// Payouts (with approval workflow)
-		auth.POST("/payouts/create", payoutHandler.CreatePayout)
+		// Payouts (with idempotency + approval workflow)
+		auth.POST("/payouts/create", idempotency.Middleware(), payoutHandler.CreatePayout)
 		auth.GET("/payouts/:id", payoutHandler.GetPayout)
 
 		// Approval

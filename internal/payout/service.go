@@ -10,6 +10,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type Service struct {
@@ -97,8 +98,7 @@ func (s *Service) processPayout(ctx context.Context, payout *models.Payout) {
 		s.store.UpdatePayoutStatus(ctx, payout.ID, models.PayoutStatusFailed, nil, &errMsg)
 		return
 	}
-	// Update status to processing
-	s.store.UpdatePayoutStatus(ctx, payout.ID, models.PayoutStatusProcessing, nil, nil)
+	defer crypto.ZeroBytes(privKey) // zero private key after use
 
 	// Send transaction
 	txHash, err := chainImpl.SendTransaction(ctx, chain.SendRequest{
