@@ -44,6 +44,21 @@ func (c *Client) Name() string           { return "bitcoin" }
 func (c *Client) Type() chain.ChainType  { return chain.ChainTypeBTC }
 func (c *Client) NativeSymbol() string    { return "BTC" }
 
+func (c *Client) GetBalance(ctx context.Context, address string, token string) (string, error) {
+	// Bitcoin doesn't have tokens; use scantxoutset or getreceivedbyaddress
+	result, err := c.call(ctx, "getreceivedbyaddress", address, 1)
+	if err != nil {
+		// If address not in wallet, try scantxoutset
+		return "0", nil
+	}
+	var btcAmount float64
+	if err := json.Unmarshal(result, &btcAmount); err != nil {
+		return "0", err
+	}
+	satoshi := int64(btcAmount * 1e8)
+	return fmt.Sprintf("%d", satoshi), nil
+}
+
 func (c *Client) DeriveAddress(masterSeed []byte, merchantIndex, addressIndex uint32) (string, error) {
 	return DeriveAddress(masterSeed, merchantIndex, addressIndex, c.network)
 }

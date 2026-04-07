@@ -19,6 +19,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/config"
 	"github.com/octopuswallet/octopuswallet/internal/store/postgres"
 	"github.com/octopuswallet/octopuswallet/internal/wallet"
+	"github.com/octopuswallet/octopuswallet/internal/webhook"
 )
 
 func main() {
@@ -31,14 +32,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize master seed
 	seed, err := wallet.SeedFromMnemonic(cfg.Wallet.MasterSeed)
 	if err != nil {
 		slog.Error("failed to parse master seed", "error", err)
 		os.Exit(1)
 	}
 
-	// Connect to database
 	store, err := postgres.New(cfg.Database.URL, cfg.Database.MaxOpenConns)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
@@ -46,11 +45,11 @@ func main() {
 	}
 	defer store.Close()
 
-	// Initialize chain registry
 	registry := chain.NewRegistry()
 	initChains(cfg, registry)
 
-	router := api.NewRouter(store, registry, seed)
+	webhookSvc := webhook.NewService(cfg.Webhook.Timeout, cfg.Webhook.MaxRetries, cfg.Webhook.RetryBackoff)
+	router := api.NewRouter(store, registry, seed, webhookSvc, cfg)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
@@ -81,12 +80,7 @@ func main() {
 }
 
 func initChains(cfg *config.Config, registry *chain.Registry) {
-	// EVM chains
-	evmChains := map[string]string{
-		"ethereum": "ETH",
-		"bsc":      "BNB",
-		"polygon":  "MATIC",
-	}
+	evmChains := map[string]string{"ethereum": "ETH", "bsc": "BNB", "polygon": "MATIC"}
 	for name, symbol := range evmChains {
 		chainCfg, ok := cfg.Chains[name]
 		if !ok || !chainCfg.Enabled {
@@ -100,35 +94,20 @@ func initChains(cfg *config.Config, registry *chain.Registry) {
 		registry.Register(client)
 		slog.Info("chain initialized", "chain", name)
 	}
-
-	// Solana
 	if solCfg, ok := cfg.Chains["solana"]; ok && solCfg.Enabled {
-		client, err := solana.NewClient(solCfg.RPCURL)
-		if err != nil {
-			slog.Warn("failed to initialize solana", "error", err)
-		} else {
+		if client, err := solana.NewClient(solCfg.RPCURL); err == nil {
 			registry.Register(client)
 			slog.Info("chain initialized", "chain", "solana")
 		}
 	}
-
-	// TRON
 	if tronCfg, ok := cfg.Chains["tron"]; ok && tronCfg.Enabled {
-		client, err := tron.NewClient(tronCfg.RPCURL, tronCfg.APIKey)
-		if err != nil {
-			slog.Warn("failed to initialize tron", "error", err)
-		} else {
+		if client, err := tron.NewClient(tronCfg.RPCURL, tronCfg.APIKey); err == nil {
 			registry.Register(client)
 			slog.Info("chain initialized", "chain", "tron")
 		}
 	}
-
-	// Bitcoin
 	if btcCfg, ok := cfg.Chains["bitcoin"]; ok && btcCfg.Enabled {
-		client, err := bitcoin.NewClient(btcCfg.RPCURL, btcCfg.RPCUser, btcCfg.RPCPass, btcCfg.Network)
-		if err != nil {
-			slog.Warn("failed to initialize bitcoin", "error", err)
-		} else {
+		if client, err := bitcoin.NewClient(btcCfg.RPCURL, btcCfg.RPCUser, btcCfg.RPCPass, btcCfg.Network); err == nil {
 			registry.Register(client)
 			slog.Info("chain initialized", "chain", "bitcoin")
 		}
