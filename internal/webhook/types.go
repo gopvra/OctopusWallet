@@ -17,6 +17,8 @@ const (
 	EventSweepFailed            EventType = "sweep.failed"
 	EventTransferCompleted      EventType = "transfer.completed"
 	EventTransferFailed         EventType = "transfer.failed"
+	EventRefundCompleted        EventType = "refund.completed"
+	EventRefundFailed           EventType = "refund.failed"
 	EventGasDepositCompleted    EventType = "gas.deposit_completed"
 	EventGasLowBalance          EventType = "gas.low_balance"
 )
