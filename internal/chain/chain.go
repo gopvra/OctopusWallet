@@ -26,6 +26,9 @@ type Chain interface {
 	ScanBlockForPayments(ctx context.Context, blockHeight uint64, watchAddresses map[string]struct{}) ([]IncomingTx, error)
 	GetTransactionConfirmations(ctx context.Context, txHash string) (uint64, error)
 
+	// Balance
+	GetBalance(ctx context.Context, address string, token string) (string, error)
+
 	// Sending
 	SendTransaction(ctx context.Context, req SendRequest) (string, error)
 	EstimateFee(ctx context.Context, req SendRequest) (string, error)

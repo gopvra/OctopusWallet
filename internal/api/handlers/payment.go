@@ -8,6 +8,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type PaymentHandler struct {
@@ -45,10 +46,16 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 
 	merchantID := c.GetString("merchant_id")
 
+	// Validate amount
+	if err := crypto.ValidateAmount(req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Get chain implementation
 	chainImpl, err := h.registry.Get(req.Chain)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain: " + req.Chain})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
 		return
 	}
 

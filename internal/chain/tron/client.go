@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -29,6 +30,51 @@ func NewClient(rpcURL, apiKey string) (*Client, error) {
 func (c *Client) Name() string           { return "tron" }
 func (c *Client) Type() chain.ChainType  { return chain.ChainTypeTron }
 func (c *Client) NativeSymbol() string    { return "TRX" }
+
+func (c *Client) GetBalance(ctx context.Context, address string, token string) (string, error) {
+	if token == "" {
+		data, err := c.apiCall(ctx, "/wallet/getaccount", map[string]string{"address": address})
+		if err != nil {
+			return "0", err
+		}
+		var account struct {
+			Balance int64 `json:"balance"`
+		}
+		if err := json.Unmarshal(data, &account); err != nil {
+			return "0", err
+		}
+		return fmt.Sprintf("%d", account.Balance), nil
+	}
+	// TRC-20 balance via triggerconstantcontract
+	// balanceOf(address) selector = 70a08231
+	addrHex, err := TronAddressToHex(address)
+	if err != nil {
+		return "0", err
+	}
+	// Pad to 32 bytes
+	paddedAddr := fmt.Sprintf("%064s", addrHex[2:]) // remove 41 prefix, pad to 64 hex
+	data, err := c.apiCall(ctx, "/wallet/triggerconstantcontract", map[string]interface{}{
+		"owner_address":     address,
+		"contract_address":  token,
+		"function_selector": "balanceOf(address)",
+		"parameter":         paddedAddr,
+	})
+	if err != nil {
+		return "0", err
+	}
+	var resp struct {
+		ConstantResult []string `json:"constant_result"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return "0", err
+	}
+	if len(resp.ConstantResult) > 0 {
+		balance := new(big.Int)
+		balance.SetString(resp.ConstantResult[0], 16)
+		return balance.String(), nil
+	}
+	return "0", nil
+}
 
 func (c *Client) DeriveAddress(masterSeed []byte, merchantIndex, addressIndex uint32) (string, error) {
 	return DeriveAddress(masterSeed, merchantIndex, addressIndex)

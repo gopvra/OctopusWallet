@@ -7,12 +7,13 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig            `mapstructure:"server"`
-	Database DatabaseConfig          `mapstructure:"database"`
-	Wallet   WalletConfig            `mapstructure:"wallet"`
-	Chains   map[string]ChainConfig  `mapstructure:"chains"`
-	Webhook  WebhookConfig           `mapstructure:"webhook"`
-	Admin    AdminConfig             `mapstructure:"admin"`
+	Server     ServerConfig                    `mapstructure:"server"`
+	Database   DatabaseConfig                  `mapstructure:"database"`
+	Wallet     WalletConfig                    `mapstructure:"wallet"`
+	Chains     map[string]ChainConfig          `mapstructure:"chains"`
+	Webhook    WebhookConfig                   `mapstructure:"webhook"`
+	GasStation GasStationConfig                `mapstructure:"gas_station"`
+	Admin      AdminConfig                     `mapstructure:"admin"`
 }
 
 type AdminConfig struct {
@@ -20,6 +21,18 @@ type AdminConfig struct {
 	DefaultUser    string   `mapstructure:"default_user"`
 	DefaultPass    string   `mapstructure:"default_pass"`
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
+}
+
+type GasStationConfig struct {
+	Enabled bool                              `mapstructure:"enabled"`
+	Chains  map[string]GasStationChainConfig  `mapstructure:"chains"`
+}
+
+type GasStationChainConfig struct {
+	StationAddress    string `mapstructure:"station_address"`
+	StationPrivateKey string `mapstructure:"station_private_key"`
+	GasAmount         string `mapstructure:"gas_amount"`
+	LowBalanceAlert   string `mapstructure:"low_balance_alert"`
 }
 
 type ServerConfig struct {
@@ -67,6 +80,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("webhook.max_retries", 5)
 	v.SetDefault("webhook.retry_backoff", "30s")
 	v.SetDefault("webhook.timeout", "10s")
+	v.SetDefault("gas_station.enabled", false)
 	v.SetDefault("admin.jwt_secret", "octopus-admin-secret-change-me")
 	v.SetDefault("admin.default_user", "admin")
 	v.SetDefault("admin.default_pass", "changeme")

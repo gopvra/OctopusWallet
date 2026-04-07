@@ -5,28 +5,31 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
+	"github.com/octopuswallet/octopuswallet/internal/config"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/internal/webhook"
 	"golang.org/x/time/rate"
 )
 
-func NewRouter(s store.Store, registry *chain.Registry, seed []byte, adminStore store.AdminStore, adminJWTSecret string, adminAllowedOrigins []string) *gin.Engine {
+func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, adminStore store.AdminStore) *gin.Engine {
 	r := gin.Default()
 
-	// Health check
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "ok",
-			"chains": registry.Names(),
-		})
+		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
 	})
 
-	// Rate limiter: 100 requests per second, burst 200
+	// Security middleware
 	rl := middleware.NewRateLimiter(rate.Limit(100), 200)
+	idempotency := middleware.NewIdempotencyStore()
 
 	merchantHandler := handlers.NewMerchantHandler(s)
 	paymentHandler := handlers.NewPaymentHandler(s, registry, seed)
-	payoutHandler := handlers.NewPayoutHandler(s, registry)
+	payoutHandler := handlers.NewPayoutHandler(s, registry, wh)
 	walletHandler := handlers.NewWalletHandler(s)
+	approvalHandler := handlers.NewApprovalHandler(s, wh)
+	sweepHandler := handlers.NewSweepHandler(s)
+	coldHotHandler := handlers.NewColdHotHandler(s)
+	gasHandler := handlers.NewGasStationHandler(registry, cfg.GasStation)
 
 	v1 := r.Group("/api/v1")
 	v1.Use(rl.Middleware())
@@ -37,18 +40,44 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, adminStore 
 	// Authenticated endpoints
 	auth := v1.Group("")
 	auth.Use(middleware.APIKeyAuth(s))
+	auth.Use(middleware.RequestHMAC()) // optional request signature validation
 	{
 		auth.GET("/merchants/profile", merchantHandler.GetProfile)
-		auth.POST("/payments/create", paymentHandler.CreatePayment)
+
+		// Payments (with idempotency)
+		auth.POST("/payments/create", idempotency.Middleware(), paymentHandler.CreatePayment)
 		auth.GET("/payments/:id", paymentHandler.GetPayment)
-		auth.POST("/payouts/create", payoutHandler.CreatePayout)
+
+		// Payouts (with idempotency + approval workflow)
+		auth.POST("/payouts/create", idempotency.Middleware(), payoutHandler.CreatePayout)
 		auth.GET("/payouts/:id", payoutHandler.GetPayout)
+
+		// Approval
+		auth.POST("/approval/config", approvalHandler.SetConfig)
+		auth.GET("/approval/config", approvalHandler.GetConfig)
+		auth.POST("/payouts/:id/approve", approvalHandler.ApprovePayout)
+		auth.POST("/payouts/:id/reject", approvalHandler.RejectPayout)
+
+		// Wallets
 		auth.GET("/wallets", walletHandler.List)
+
+		// Sweep / Auto-collection
+		auth.POST("/sweep/collection-address", sweepHandler.SetCollectionAddress)
+		auth.GET("/sweep/collection-address", sweepHandler.GetCollectionAddresses)
+		auth.GET("/sweep/tasks", sweepHandler.ListTasks)
+
+		// Cold/Hot wallet
+		auth.POST("/cold-wallet/config", coldHotHandler.SetConfig)
+		auth.GET("/cold-wallet/config", coldHotHandler.GetConfig)
+		auth.GET("/cold-wallet/transfers", coldHotHandler.ListTransfers)
+
+		// Gas station
+		auth.GET("/gas/status", gasHandler.GetStatus)
 	}
 
 	// Admin routes
 	if adminStore != nil {
-		SetupAdminRoutes(r, adminStore, adminJWTSecret, adminAllowedOrigins)
+		SetupAdminRoutes(r, adminStore, cfg.Admin.JWTSecret, cfg.Admin.AllowedOrigins)
 	}
 
 	return r
