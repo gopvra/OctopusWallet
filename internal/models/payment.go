@@ -18,6 +18,10 @@ type Payment struct {
 	AmountReceived string     `db:"amount_received" json:"amount_received"`
 	Address        string     `db:"address" json:"address"`
 	Status         string     `db:"status" json:"status"`
+	Currency       string     `db:"currency" json:"currency"`
+	Description    string     `db:"description" json:"description"`
+	OrderID        string     `db:"order_id" json:"order_id,omitempty"`
+	RedirectURL    string     `db:"redirect_url" json:"redirect_url,omitempty"`
 	TxHash         *string    `db:"tx_hash" json:"tx_hash,omitempty"`
 	Confirmations  int        `db:"confirmations" json:"confirmations"`
 	ExpiresAt      *time.Time `db:"expires_at" json:"expires_at,omitempty"`

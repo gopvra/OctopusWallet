@@ -480,3 +480,179 @@ func (s *Store) CreateGasAlert(ctx context.Context, alert *models.GasAlert) erro
 		alert.Chain, alert.StationAddress, alert.Balance, alert.Threshold)
 	return err
 }
+
+// --- Refunds ---
+
+func (s *Store) CreateRefund(ctx context.Context, r *models.Refund) error {
+	query := `INSERT INTO refunds (payment_id, merchant_id, chain, token, to_address, amount, reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, status, created_at, updated_at`
+	return s.db.QueryRowxContext(ctx, query,
+		r.PaymentID, r.MerchantID, r.Chain, r.Token, r.ToAddress, r.Amount, r.Reason).
+		Scan(&r.ID, &r.Status, &r.CreatedAt, &r.UpdatedAt)
+}
+
+func (s *Store) GetRefundByID(ctx context.Context, id string) (*models.Refund, error) {
+	var r models.Refund
+	err := s.db.GetContext(ctx, &r, "SELECT * FROM refunds WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func (s *Store) GetRefundsByPayment(ctx context.Context, paymentID string) ([]models.Refund, error) {
+	var refunds []models.Refund
+	err := s.db.SelectContext(ctx, &refunds,
+		"SELECT * FROM refunds WHERE payment_id = $1 ORDER BY created_at DESC", paymentID)
+	return refunds, err
+}
+
+func (s *Store) GetPendingRefunds(ctx context.Context) ([]models.Refund, error) {
+	var refunds []models.Refund
+	err := s.db.SelectContext(ctx, &refunds,
+		`UPDATE refunds SET status = 'processing', updated_at = now()
+		 WHERE id IN (SELECT id FROM refunds WHERE status = 'pending' ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED)
+		 RETURNING *`)
+	return refunds, err
+}
+
+func (s *Store) UpdateRefundStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE refunds SET status = $1, tx_hash = $2, error_message = $3, updated_at = now() WHERE id = $4",
+		status, txHash, errMsg, id)
+	return err
+}
+
+// --- Merchant Balances ---
+
+func (s *Store) GetMerchantBalances(ctx context.Context, merchantID string) ([]models.MerchantBalance, error) {
+	var balances []models.MerchantBalance
+	err := s.db.SelectContext(ctx, &balances,
+		"SELECT * FROM merchant_balances WHERE merchant_id = $1", merchantID)
+	return balances, err
+}
+
+func (s *Store) UpdateMerchantBalance(ctx context.Context, merchantID, chain, token, deltaAvailable, deltaPending string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO merchant_balances (merchant_id, chain, token, available, pending)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (merchant_id, chain, token) DO UPDATE
+		 SET available = (CAST(merchant_balances.available AS NUMERIC) + CAST($4 AS NUMERIC))::TEXT,
+		     pending = (CAST(merchant_balances.pending AS NUMERIC) + CAST($5 AS NUMERIC))::TEXT,
+		     updated_at = now()`,
+		merchantID, chain, token, deltaAvailable, deltaPending)
+	return err
+}
+
+// --- Supported Currencies ---
+
+func (s *Store) GetSupportedCurrencies(ctx context.Context) ([]models.SupportedCurrency, error) {
+	var currencies []models.SupportedCurrency
+	err := s.db.SelectContext(ctx, &currencies,
+		"SELECT * FROM supported_currencies WHERE is_active = true ORDER BY chain, symbol")
+	return currencies, err
+}
+
+func (s *Store) GetSupportedCurrenciesByChain(ctx context.Context, chain string) ([]models.SupportedCurrency, error) {
+	var currencies []models.SupportedCurrency
+	err := s.db.SelectContext(ctx, &currencies,
+		"SELECT * FROM supported_currencies WHERE chain = $1 AND is_active = true ORDER BY symbol", chain)
+	return currencies, err
+}
+
+// --- Batch Payouts ---
+
+func (s *Store) CreateBatchPayout(ctx context.Context, b *models.BatchPayout) error {
+	query := `INSERT INTO batch_payouts (merchant_id, chain, token, total_amount, total_count)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, status, completed_count, failed_count, created_at, updated_at`
+	return s.db.QueryRowxContext(ctx, query,
+		b.MerchantID, b.Chain, b.Token, b.TotalAmount, b.TotalCount).
+		Scan(&b.ID, &b.Status, &b.CompletedCount, &b.FailedCount, &b.CreatedAt, &b.UpdatedAt)
+}
+
+func (s *Store) GetBatchPayoutByID(ctx context.Context, id string) (*models.BatchPayout, error) {
+	var b models.BatchPayout
+	err := s.db.GetContext(ctx, &b, "SELECT * FROM batch_payouts WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+func (s *Store) GetBatchPayoutsByMerchant(ctx context.Context, merchantID string) ([]models.BatchPayout, error) {
+	var batches []models.BatchPayout
+	err := s.db.SelectContext(ctx, &batches,
+		"SELECT * FROM batch_payouts WHERE merchant_id = $1 ORDER BY created_at DESC", merchantID)
+	return batches, err
+}
+
+func (s *Store) CreateBatchPayoutItem(ctx context.Context, item *models.BatchPayoutItem) error {
+	query := `INSERT INTO batch_payout_items (batch_id, to_address, amount)
+		VALUES ($1, $2, $3) RETURNING id, status, created_at`
+	return s.db.QueryRowxContext(ctx, query, item.BatchID, item.ToAddress, item.Amount).
+		Scan(&item.ID, &item.Status, &item.CreatedAt)
+}
+
+func (s *Store) GetBatchPayoutItems(ctx context.Context, batchID string) ([]models.BatchPayoutItem, error) {
+	var items []models.BatchPayoutItem
+	err := s.db.SelectContext(ctx, &items,
+		"SELECT * FROM batch_payout_items WHERE batch_id = $1 ORDER BY created_at", batchID)
+	return items, err
+}
+
+func (s *Store) UpdateBatchPayoutStatus(ctx context.Context, id, status string, completed, failed int) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE batch_payouts SET status = $1, completed_count = $2, failed_count = $3, updated_at = now() WHERE id = $4",
+		status, completed, failed, id)
+	return err
+}
+
+// --- IP Whitelist ---
+
+func (s *Store) SetMerchantIPWhitelist(ctx context.Context, merchantID string, ips []string) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, "DELETE FROM merchant_ip_whitelist WHERE merchant_id = $1", merchantID)
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO merchant_ip_whitelist (merchant_id, ip_address) VALUES ($1, $2)", merchantID, ip)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) GetMerchantIPWhitelist(ctx context.Context, merchantID string) ([]string, error) {
+	var ips []string
+	err := s.db.SelectContext(ctx, &ips,
+		"SELECT ip_address FROM merchant_ip_whitelist WHERE merchant_id = $1", merchantID)
+	return ips, err
+}
+
+// --- Pagination ---
+
+func (s *Store) GetPaymentsByMerchant(ctx context.Context, merchantID string, limit, offset int) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := s.db.SelectContext(ctx, &payments,
+		"SELECT * FROM payments WHERE merchant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+		merchantID, limit, offset)
+	return payments, err
+}
+
+func (s *Store) GetPayoutsByMerchant(ctx context.Context, merchantID string, limit, offset int) ([]models.Payout, error) {
+	var payouts []models.Payout
+	err := s.db.SelectContext(ctx, &payouts,
+		"SELECT * FROM payouts WHERE merchant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+		merchantID, limit, offset)
+	return payouts, err
+}

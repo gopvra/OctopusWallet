@@ -22,9 +22,13 @@ func NewPaymentHandler(s store.Store, registry *chain.Registry, seed []byte) *Pa
 }
 
 type CreatePaymentRequest struct {
-	Chain  string `json:"chain" binding:"required"`
-	Amount string `json:"amount" binding:"required"`
-	Token  string `json:"token"`
+	Chain       string `json:"chain" binding:"required"`
+	Amount      string `json:"amount" binding:"required"`
+	Token       string `json:"token"`
+	Currency    string `json:"currency"`     // e.g. "USD" for display
+	Description string `json:"description"`  // invoice description
+	OrderID     string `json:"order_id"`     // merchant's order reference
+	RedirectURL string `json:"redirect_url"` // post-payment redirect
 }
 
 type CreatePaymentResponse struct {

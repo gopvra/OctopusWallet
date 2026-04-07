@@ -18,7 +18,6 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
 	})
 
-	// Security middleware
 	rl := middleware.NewRateLimiter(rate.Limit(100), 200)
 	idempotency := middleware.NewIdempotencyStore()
 
@@ -30,27 +29,46 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	sweepHandler := handlers.NewSweepHandler(s)
 	coldHotHandler := handlers.NewColdHotHandler(s)
 	gasHandler := handlers.NewGasStationHandler(registry, cfg.GasStation)
+	refundHandler := handlers.NewRefundHandler(s)
+	currencyHandler := handlers.NewCurrencyHandler(s, registry)
+	batchHandler := handlers.NewBatchPayoutHandler(s, registry)
+	balanceHandler := handlers.NewBalanceHandler(s)
 
 	v1 := r.Group("/api/v1")
 	v1.Use(rl.Middleware())
 
 	// Public endpoints
 	v1.POST("/merchants/register", merchantHandler.Register)
+	v1.GET("/currencies", currencyHandler.ListCurrencies)
+	v1.GET("/rates", currencyHandler.GetExchangeRate)
 
 	// Authenticated endpoints
 	auth := v1.Group("")
 	auth.Use(middleware.APIKeyAuth(s))
-	auth.Use(middleware.RequestHMAC()) // optional request signature validation
+	auth.Use(middleware.RequestHMAC())
 	{
+		// Merchant
 		auth.GET("/merchants/profile", merchantHandler.GetProfile)
 
-		// Payments (with idempotency)
+		// Payments / Invoices (with idempotency)
 		auth.POST("/payments/create", idempotency.Middleware(), paymentHandler.CreatePayment)
 		auth.GET("/payments/:id", paymentHandler.GetPayment)
+		auth.GET("/payments", balanceHandler.ListPayments) // paginated list
 
-		// Payouts (with idempotency + approval workflow)
+		// Refunds
+		auth.POST("/refunds/create", idempotency.Middleware(), refundHandler.CreateRefund)
+		auth.GET("/refunds/:id", refundHandler.GetRefund)
+		auth.GET("/payments/:payment_id/refunds", refundHandler.ListRefundsByPayment)
+
+		// Payouts (with idempotency + approval)
 		auth.POST("/payouts/create", idempotency.Middleware(), payoutHandler.CreatePayout)
 		auth.GET("/payouts/:id", payoutHandler.GetPayout)
+		auth.GET("/payouts", balanceHandler.ListPayouts) // paginated list
+
+		// Batch Payouts
+		auth.POST("/payouts/batch", idempotency.Middleware(), batchHandler.CreateBatchPayout)
+		auth.GET("/payouts/batch/:id", batchHandler.GetBatchPayout)
+		auth.GET("/payouts/batches", batchHandler.ListBatchPayouts)
 
 		// Approval
 		auth.POST("/approval/config", approvalHandler.SetConfig)
@@ -58,10 +76,13 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 		auth.POST("/payouts/:id/approve", approvalHandler.ApprovePayout)
 		auth.POST("/payouts/:id/reject", approvalHandler.RejectPayout)
 
+		// Balance / Ledger
+		auth.GET("/balances", balanceHandler.GetBalances)
+
 		// Wallets
 		auth.GET("/wallets", walletHandler.List)
 
-		// Sweep / Auto-collection
+		// Sweep
 		auth.POST("/sweep/collection-address", sweepHandler.SetCollectionAddress)
 		auth.GET("/sweep/collection-address", sweepHandler.GetCollectionAddresses)
 		auth.GET("/sweep/tasks", sweepHandler.ListTasks)
@@ -73,6 +94,10 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 
 		// Gas station
 		auth.GET("/gas/status", gasHandler.GetStatus)
+
+		// IP Whitelist
+		auth.POST("/security/ip-whitelist", balanceHandler.SetIPWhitelist)
+		auth.GET("/security/ip-whitelist", balanceHandler.GetIPWhitelist)
 	}
 
 	return r
