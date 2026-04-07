@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"math/big"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,16 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 
 	if err := crypto.ValidateAddress(payment.Chain, req.ToAddress); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate refund amount does not exceed payment received
+	refundAmt := new(big.Int)
+	refundAmt.SetString(req.Amount, 10)
+	receivedAmt := new(big.Int)
+	receivedAmt.SetString(payment.AmountReceived, 10)
+	if refundAmt.Cmp(receivedAmt) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refund amount exceeds payment received"})
 		return
 	}
 

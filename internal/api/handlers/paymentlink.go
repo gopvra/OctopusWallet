@@ -1,0 +1,91 @@
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/octopuswallet/octopuswallet/internal/chain"
+	"github.com/octopuswallet/octopuswallet/internal/models"
+	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
+)
+
+type PaymentLinkHandler struct {
+	store    store.Store
+	registry *chain.Registry
+}
+
+func NewPaymentLinkHandler(s store.Store, r *chain.Registry) *PaymentLinkHandler {
+	return &PaymentLinkHandler{store: s, registry: r}
+}
+
+type CreatePaymentLinkRequest struct {
+	Chain       string `json:"chain" binding:"required"`
+	Amount      string `json:"amount" binding:"required"`
+	Token       string `json:"token"`
+	Currency    string `json:"currency"`
+	Description string `json:"description"`
+	RedirectURL string `json:"redirect_url"`
+	IsReusable  bool   `json:"is_reusable"`
+}
+
+func (h *PaymentLinkHandler) Create(c *gin.Context) {
+	var req CreatePaymentLinkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.registry.Get(req.Chain); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		return
+	}
+	if err := crypto.ValidateAmount(req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	merchantID := c.GetString("merchant_id")
+	link := &models.PaymentLink{
+		MerchantID:  merchantID,
+		Chain:       req.Chain,
+		Token:       req.Token,
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+		Description: req.Description,
+		RedirectURL: req.RedirectURL,
+		IsReusable:  req.IsReusable,
+	}
+	if err := h.store.CreatePaymentLink(c.Request.Context(), link); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create payment link"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"payment_link": link,
+		"url":          "/pay/link/" + link.ID,
+	})
+}
+
+func (h *PaymentLinkHandler) List(c *gin.Context) {
+	merchantID := c.GetString("merchant_id")
+	links, err := h.store.GetPaymentLinksByMerchant(c.Request.Context(), merchantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list payment links"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"payment_links": links})
+}
+
+// GetPublic is a public endpoint — no auth required. Returns link info for checkout.
+func (h *PaymentLinkHandler) GetPublic(c *gin.Context) {
+	id := c.Param("id")
+	link, err := h.store.GetPaymentLinkByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment link not found"})
+		return
+	}
+	if !link.IsReusable && link.UsesCount > 0 {
+		c.JSON(http.StatusGone, gin.H{"error": "payment link already used"})
+		return
+	}
+	c.JSON(http.StatusOK, link)
+}
