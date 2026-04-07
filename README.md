@@ -232,6 +232,8 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | Supported Currencies API | ✓ | ✓ | ✓ |
 | Balance/Ledger | ✓ | ✓ | ✓ |
 | Pagination | ✓ | ✓ | ✓ |
+| Admin Dashboard | ✓ | ✓ | ✓ (React, dark-theme) |
+| Real-time WebSocket | - | - | ✓ |
 | Self-hosted | - | - | ✓ |
 | Open Source | - | - | ✓ (Apache 2.0) |
 
@@ -248,11 +250,66 @@ Set via `config/config.yaml` or environment variables (prefix `OCTOPUS_`):
 | `gas_station.enabled` | - | Enable gas fee management |
 | `gas_station.chains.<name>.station_address` | - | Gas station address |
 
-## Admin Panel
+## Admin Dashboard
 
-OctopusWallet includes a built-in admin management system. The admin API is served alongside the merchant API.
+OctopusWallet ships with a full-featured admin panel for platform operators. The admin API runs alongside the merchant API — no additional services required.
 
-**Frontend**: [OctopusWallet-Admin](https://github.com/gopvra/OctopusWallet-Admin) — React + TypeScript + Tailwind CSS dark-themed dashboard.
+**Repository**: [OctopusWallet-Admin](https://github.com/gopvra/OctopusWallet-Admin)
+
+<p align="center">
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/dashboard-preview.svg" alt="Admin Dashboard" width="80%" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/login-preview.svg" alt="Admin Login" width="45%" />
+  </a>
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/architecture.svg" alt="Architecture" width="45%" />
+  </a>
+</p>
+
+### Admin Capabilities
+
+| Category | Features |
+|----------|----------|
+| **Dashboard** | Real-time stats, payment volume charts, chain distribution, recent activity feed |
+| **Merchants** | List, search, detail view, activate/deactivate, edit webhook URL |
+| **Payments** | Monitor all payments, filter by status/chain/merchant, full transaction detail |
+| **Payouts** | Track outgoing payouts, approval status, transaction hashes |
+| **Refunds** | View refund requests, processing status, error tracking |
+| **Batch Payouts** | Batch operation overview with per-item breakdown and progress |
+| **Wallets** | Browse all HD-derived addresses across chains and merchants |
+| **Balances** | Merchant available/pending balance per chain and token |
+| **Currencies** | View and manage supported currencies and tokens per chain |
+| **Chain Status** | Real-time blockchain sync state and block height per chain |
+| **Admin Users** | Role-based access control (super_admin / admin), CRUD management |
+| **Security** | JWT auth, login rate limiting, CORS whitelist, security headers, CSP |
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Go + Gin + JWT + PostgreSQL (built into this repo) |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS v4 |
+| Data | TanStack Query + TanStack Table + Recharts |
+| State | Zustand + React Router v7 |
+
+### Quick Start
+
+```bash
+# 1. Configure admin in config.yaml (see below)
+# 2. Start OctopusWallet server (admin API included automatically)
+make run-server
+
+# 3. In another terminal, start the admin frontend
+git clone https://github.com/gopvra/OctopusWallet-Admin.git
+cd OctopusWallet-Admin
+npm install && npm run dev
+# Open http://localhost:5173
+```
 
 ### Admin Configuration
 
@@ -263,6 +320,7 @@ admin:
   default_pass: "changeme"             # Default admin password
   allowed_origins:                      # CORS origins for admin frontend
     - "http://localhost:5173"
+    - "https://admin.yourdomain.com"
 ```
 
 | Config | Environment Variable | Description |
@@ -270,16 +328,6 @@ admin:
 | `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret |
 | `admin.default_user` | `OCTOPUS_ADMIN_DEFAULT_USER` | Default admin username |
 | `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password |
-
-### Admin Features
-
-- Dashboard with real-time statistics and charts
-- Merchant management (list, search, activate/deactivate)
-- Payment/payout/refund/batch-payout monitoring
-- Wallet and balance overview
-- Supported currencies management
-- Chain sync status monitoring
-- Admin user management with role-based access
 
 ### Default Credentials
 
@@ -290,7 +338,7 @@ Username: admin
 Password: changeme
 ```
 
-> Change the default password immediately in production.
+> **Important:** Change the default password immediately in production.
 
 ## License
 
