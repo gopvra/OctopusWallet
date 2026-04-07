@@ -273,15 +273,33 @@ func (s *Store) CreateSweepTask(ctx context.Context, task *models.SweepTask) err
 }
 
 func (s *Store) GetPendingSweepTasks(ctx context.Context) ([]models.SweepTask, error) {
-	var tasks []models.SweepTask
-	err := s.db.SelectContext(ctx, &tasks,
+	// Atomically claim pending sweep tasks (not gas_needed — those need different handling)
+	var pending []models.SweepTask
+	err := s.db.SelectContext(ctx, &pending,
+		`UPDATE sweep_tasks SET status = 'processing', updated_at = now()
+		 WHERE id IN (
+		   SELECT id FROM sweep_tasks
+		   WHERE status = 'pending'
+		   ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED
+		 ) RETURNING *`)
+	if err != nil {
+		return nil, err
+	}
+
+	// Gas-needed tasks: select with lock but don't change status (checkGasDeposit handles transition)
+	var gasNeeded []models.SweepTask
+	err = s.db.SelectContext(ctx, &gasNeeded,
 		`SELECT * FROM sweep_tasks
 		 WHERE id IN (
 		   SELECT id FROM sweep_tasks
-		   WHERE status IN ('pending', 'gas_needed')
+		   WHERE status = 'gas_needed'
 		   ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED
 		 )`)
-	return tasks, err
+	if err != nil {
+		return pending, nil
+	}
+
+	return append(pending, gasNeeded...), nil
 }
 
 func (s *Store) GetSweepTasksByMerchant(ctx context.Context, merchantID string) ([]models.SweepTask, error) {
