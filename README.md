@@ -2,6 +2,16 @@
 
 Open-source multi-chain merchant payment gateway. Self-hosted alternative to BitPay / CoinsPaid with enterprise features including auto-sweep, cold/hot wallet separation, withdrawal approval workflows, gas fee management, payment links, and audit logging.
 
+## Hosted Checkout Page
+
+<p align="center">
+  <img src="docs/checkout-pending.svg" alt="Waiting for Payment" width="260" />
+  <img src="docs/checkout-confirming.svg" alt="Confirming" width="260" />
+  <img src="docs/checkout-completed.svg" alt="Payment Complete" width="260" />
+</p>
+
+Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-click address copy, countdown timer, and real-time status updates via WebSocket.
+
 ## Supported Chains
 
 | Chain | Native | Token Standard | Address Format |

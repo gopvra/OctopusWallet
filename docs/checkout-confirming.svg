@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="480" viewBox="0 0 500 480" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <filter id="cardShadow" x="-5%" y="-2%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .spinner { animation: spin 1s linear infinite; transform-origin: 250px 290px; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="500" height="480" fill="#f9fafb"/>
+
+  <!-- Card -->
+  <rect x="50" y="20" width="400" height="440" rx="16" fill="#fff" filter="url(#cardShadow)"/>
+
+  <!-- Header -->
+  <rect x="50" y="20" width="400" height="16" rx="16" ry="16" fill="#111827"/>
+  <rect x="50" y="30" width="400" height="46" fill="#111827"/>
+  <text x="74" y="58" fill="#fff" font-size="17" font-weight="700">OctopusWallet</text>
+
+  <!-- Order info -->
+  <text x="250" y="108" fill="#6b7280" font-size="13" text-anchor="middle">Order: #ORD-2024-1058</text>
+  <text x="250" y="126" fill="#4b5563" font-size="13" text-anchor="middle">Premium subscription</text>
+
+  <!-- Amount -->
+  <text x="250" y="170" fill="#111827" font-size="32" font-weight="700" text-anchor="middle">0.0125</text>
+  <text x="250" y="192" fill="#6b7280" font-size="13" text-anchor="middle">Ethereum (USDT)</text>
+
+  <!-- Spinner -->
+  <g class="spinner">
+    <circle cx="250" cy="260" r="20" fill="none" stroke="#dbeafe" stroke-width="4"/>
+    <path d="M250 240 a20 20 0 0 1 20 20" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- Confirming text -->
+  <text x="250" y="310" fill="#2563eb" font-size="18" font-weight="600" text-anchor="middle">Confirming...</text>
+  <text x="250" y="334" fill="#6b7280" font-size="14" text-anchor="middle">3 confirmations</text>
+
+  <!-- View transaction link -->
+  <text x="250" y="366" fill="#3b82f6" font-size="14" text-anchor="middle" text-decoration="none">
+    <tspan style="cursor:pointer">View transaction</tspan>
+  </text>
+
+  <!-- Footer -->
+  <line x1="50" y1="408" x2="450" y2="408" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="250" y="436" fill="#9ca3af" font-size="12" text-anchor="middle">Powered by OctopusWallet</text>
+</svg>

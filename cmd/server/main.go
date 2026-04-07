@@ -17,9 +17,11 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/chain/solana"
 	"github.com/octopuswallet/octopuswallet/internal/chain/tron"
 	"github.com/octopuswallet/octopuswallet/internal/config"
+	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store/postgres"
 	"github.com/octopuswallet/octopuswallet/internal/wallet"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -48,9 +50,12 @@ func main() {
 	registry := chain.NewRegistry()
 	initChains(cfg, registry)
 
+	// Initialize admin: seed default admin user if none exists
+	initAdminUser(store, cfg)
+
 	webhookSvc := webhook.NewService(cfg.Webhook.Timeout, cfg.Webhook.MaxRetries, cfg.Webhook.RetryBackoff)
 	hub := api.NewHub()
-	router := api.NewRouter(store, registry, seed, webhookSvc, cfg, hub)
+	router := api.NewRouter(store, registry, seed, webhookSvc, cfg, hub, store)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
@@ -113,4 +118,33 @@ func initChains(cfg *config.Config, registry *chain.Registry) {
 			slog.Info("chain initialized", "chain", "bitcoin")
 		}
 	}
+}
+
+func initAdminUser(s *postgres.Store, cfg *config.Config) {
+	count, err := s.CountAdminUsers(context.Background())
+	if err != nil {
+		slog.Warn("failed to count admin users", "error", err)
+		return
+	}
+	if count > 0 {
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Admin.DefaultPass), bcrypt.DefaultCost)
+	if err != nil {
+		slog.Error("failed to hash default admin password", "error", err)
+		return
+	}
+
+	user := &models.AdminUser{
+		Username: cfg.Admin.DefaultUser,
+		Email:    cfg.Admin.DefaultUser + "@octopus.local",
+		Password: string(hash),
+		Role:     models.RoleSuperAdmin,
+	}
+	if err := s.CreateAdminUser(context.Background(), user); err != nil {
+		slog.Error("failed to create default admin user", "error", err)
+		return
+	}
+	slog.Info("default admin user created", "username", cfg.Admin.DefaultUser)
 }
