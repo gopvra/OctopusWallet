@@ -119,8 +119,13 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 
 func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	id := c.Param("id")
+	merchantID := c.GetString("merchant_id")
 	payment, err := h.store.GetPaymentByID(c.Request.Context(), id)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
+	if payment.MerchantID != merchantID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
 		return
 	}

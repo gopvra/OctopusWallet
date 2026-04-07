@@ -11,6 +11,7 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type Service struct {
@@ -141,6 +142,7 @@ func (s *Service) processHotToCold(ctx context.Context, transfer *models.WalletT
 		s.store.UpdateWalletTransferStatus(ctx, transfer.ID, models.PayoutStatusFailed, nil, &errMsg)
 		return
 	}
+	defer crypto.ZeroBytes(privKey)
 
 	s.store.UpdateWalletTransferStatus(ctx, transfer.ID, "processing", nil, nil)
 

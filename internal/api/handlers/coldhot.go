@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type ColdHotHandler struct {
@@ -30,6 +31,16 @@ func (h *ColdHotHandler) SetConfig(c *gin.Context) {
 		return
 	}
 	merchantID := c.GetString("merchant_id")
+
+	if err := crypto.ValidateAddress(req.Chain, req.ColdWalletAddress); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cold_wallet_address: " + err.Error()})
+		return
+	}
+	if err := crypto.ValidateAmountOrZero(req.HotWalletMaxBalance); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "hot_wallet_max_balance: " + err.Error()})
+		return
+	}
+
 	cfg := &models.ColdWalletConfig{
 		MerchantID:          merchantID,
 		Chain:               req.Chain,

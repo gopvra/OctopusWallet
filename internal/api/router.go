@@ -11,11 +11,26 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config) *gin.Engine {
+func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub) *gin.Engine {
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
+	})
+
+	// WebSocket for real-time payment status
+	r.GET("/ws/payments/:id", HandleWebSocket(hub))
+
+	// Serve frontend static files (if built)
+	r.Static("/static", "./web/dist/assets")
+	r.StaticFile("/", "./web/dist/index.html")
+	r.NoRoute(func(c *gin.Context) {
+		// SPA fallback — serve index.html for non-API routes
+		if len(c.Request.URL.Path) > 4 && c.Request.URL.Path[:4] != "/api" && c.Request.URL.Path[:3] != "/ws" {
+			c.File("./web/dist/index.html")
+			return
+		}
+		c.JSON(404, gin.H{"error": "not found"})
 	})
 
 	rl := middleware.NewRateLimiter(rate.Limit(100), 200)

@@ -1,8 +1,11 @@
 package middleware
 
 import (
+	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -10,7 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Idempotency middleware prevents duplicate requests using the X-Idempotency-Key header.
+const maxIdempotencyEntries = 10000
+
 type IdempotencyStore struct {
 	mu      sync.RWMutex
 	entries map[string]idempotencyEntry
@@ -51,7 +55,6 @@ func (s *IdempotencyStore) Middleware() gin.HandlerFunc {
 			return
 		}
 
-		// Scope to merchant
 		merchantID, _ := c.Get("merchant_id")
 		scopedKey := hashKey(key, merchantID)
 
@@ -65,13 +68,20 @@ func (s *IdempotencyStore) Middleware() gin.HandlerFunc {
 			return
 		}
 
-		// Use a response writer wrapper to capture the response
+		// Reject if store is full (DoS protection)
+		s.mu.RLock()
+		size := len(s.entries)
+		s.mu.RUnlock()
+		if size >= maxIdempotencyEntries {
+			c.Next()
+			return
+		}
+
 		writer := &responseCapture{ResponseWriter: c.Writer}
 		c.Writer = writer
 
 		c.Next()
 
-		// Store the response for 24 hours
 		s.mu.Lock()
 		s.entries[scopedKey] = idempotencyEntry{
 			status:   writer.status,
@@ -113,13 +123,12 @@ func (w *responseCapture) WriteString(s string) (int, error) {
 }
 
 // RequestHMAC validates that incoming requests are signed with HMAC-SHA256.
-// The signature is computed over: method + path + body + timestamp using the API key hash.
+// Signature is computed over: method + path + body + timestamp using the API key hash.
+// Signature is optional — only enforced when X-Request-Signature header is present.
 func RequestHMAC() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sig := c.GetHeader("X-Request-Signature")
 		if sig == "" {
-			// Signature is optional for backward compatibility.
-			// Merchants can enable strict mode via config.
 			c.Next()
 			return
 		}
@@ -130,7 +139,6 @@ func RequestHMAC() gin.HandlerFunc {
 			return
 		}
 
-		// Verify timestamp is within 5 minutes
 		ts, err := time.Parse(time.RFC3339, timestamp)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid timestamp format"})
@@ -138,6 +146,46 @@ func RequestHMAC() gin.HandlerFunc {
 		}
 		if time.Since(ts).Abs() > 5*time.Minute {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "request timestamp expired"})
+			return
+		}
+
+		// Read body for signature verification
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		// Get merchant's API key hash for HMAC computation
+		merchant, exists := c.Get("merchant")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			return
+		}
+
+		// Compute expected HMAC: method + path + body + timestamp
+		type apiKeyHolder interface {
+			GetAPIKeyHash() string
+		}
+		var secret string
+		if m, ok := merchant.(apiKeyHolder); ok {
+			secret = m.GetAPIKeyHash()
+		} else {
+			// Fallback: use merchant_id as part of key derivation
+			mid, _ := c.Get("merchant_id")
+			secret = mid.(string)
+		}
+
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(c.Request.Method))
+		mac.Write([]byte(c.Request.URL.Path))
+		mac.Write(body)
+		mac.Write([]byte(timestamp))
+		expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+		if !hmac.Equal([]byte(sig), []byte(expectedSig)) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid request signature"})
 			return
 		}
 

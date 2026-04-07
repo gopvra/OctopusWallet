@@ -101,8 +101,13 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 
 func (h *BatchPayoutHandler) GetBatchPayout(c *gin.Context) {
 	id := c.Param("id")
+	merchantID := c.GetString("merchant_id")
 	batch, err := h.store.GetBatchPayoutByID(c.Request.Context(), id)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
+		return
+	}
+	if batch.MerchantID != merchantID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
 		return
 	}

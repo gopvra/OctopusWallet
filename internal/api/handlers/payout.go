@@ -90,8 +90,13 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 
 func (h *PayoutHandler) GetPayout(c *gin.Context) {
 	id := c.Param("id")
+	merchantID := c.GetString("merchant_id")
 	payout, err := h.store.GetPayoutByID(c.Request.Context(), id)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
+		return
+	}
+	if payout.MerchantID != merchantID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
 		return
 	}

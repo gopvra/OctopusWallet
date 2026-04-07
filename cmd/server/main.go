@@ -49,7 +49,8 @@ func main() {
 	initChains(cfg, registry)
 
 	webhookSvc := webhook.NewService(cfg.Webhook.Timeout, cfg.Webhook.MaxRetries, cfg.Webhook.RetryBackoff)
-	router := api.NewRouter(store, registry, seed, webhookSvc, cfg)
+	hub := api.NewHub()
+	router := api.NewRouter(store, registry, seed, webhookSvc, cfg, hub)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
