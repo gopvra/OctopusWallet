@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="720" viewBox="0 0 500 720" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <!-- Card shadow filter -->
+    <filter id="cardShadow" x="-5%" y="-2%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+    <!-- Pulse animation styles -->
+    <style>
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      .pulse-dot { animation: pulse 2s ease-in-out infinite; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="500" height="720" fill="#f9fafb" rx="0"/>
+
+  <!-- Card -->
+  <rect x="50" y="20" width="400" height="680" rx="16" ry="16" fill="#fff" filter="url(#cardShadow)"/>
+
+  <!-- ============================================ -->
+  <!-- 1. HEADER BAR -->
+  <!-- ============================================ -->
+  <rect x="50" y="20" width="400" height="56" fill="#111827"/>
+  <!-- Top rounded corners clip -->
+  <rect x="50" y="20" width="400" height="16" rx="16" ry="16" fill="#111827"/>
+  <rect x="50" y="30" width="400" height="46" fill="#111827"/>
+
+  <text x="74" y="54" fill="#fff" font-size="17" font-weight="700">OctopusWallet</text>
+
+  <!-- Timer badge -->
+  <rect x="370" y="38" width="62" height="28" rx="6" fill="rgba(255,255,255,0.12)"/>
+  <text x="401" y="57" fill="#d1d5db" font-size="14" font-weight="500" text-anchor="middle" font-variant-numeric="tabular-nums">29:45</text>
+
+  <!-- ============================================ -->
+  <!-- 2. ORDER INFO -->
+  <!-- ============================================ -->
+  <text x="250" y="108" fill="#6b7280" font-size="13" text-anchor="middle">Order: #ORD-2024-1058</text>
+  <text x="250" y="126" fill="#4b5563" font-size="13" text-anchor="middle">Premium subscription</text>
+
+  <!-- ============================================ -->
+  <!-- 3. AMOUNT -->
+  <!-- ============================================ -->
+  <text x="250" y="170" fill="#111827" font-size="32" font-weight="700" text-anchor="middle">0.0125</text>
+  <text x="250" y="192" fill="#6b7280" font-size="13" text-anchor="middle">Ethereum (USDT)</text>
+
+  <!-- ============================================ -->
+  <!-- 4. QR CODE -->
+  <!-- ============================================ -->
+  <!-- QR white background / quiet zone -->
+  <rect x="160" y="210" width="180" height="180" rx="8" fill="#fff" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- QR code group - offset to center a 21x21 module grid within the 180x180 area -->
+  <!-- Module size: 7px, grid: 21 modules = 147px, offset: (180-147)/2 = 16.5 -> round to 17 -->
+  <g transform="translate(177, 227)">
+    <!-- ===== TOP-LEFT FINDER PATTERN (7x7) ===== -->
+    <rect x="0" y="0" width="49" height="49" fill="#000"/>
+    <rect x="7" y="7" width="35" height="35" fill="#fff"/>
+    <rect x="14" y="14" width="21" height="21" fill="#000"/>
+
+    <!-- ===== TOP-RIGHT FINDER PATTERN ===== -->
+    <rect x="98" y="0" width="49" height="49" fill="#000"/>
+    <rect x="105" y="7" width="35" height="35" fill="#fff"/>
+    <rect x="112" y="14" width="21" height="21" fill="#000"/>
+
+    <!-- ===== BOTTOM-LEFT FINDER PATTERN ===== -->
+    <rect x="0" y="98" width="49" height="49" fill="#000"/>
+    <rect x="7" y="105" width="35" height="35" fill="#fff"/>
+    <rect x="14" y="112" width="21" height="21" fill="#000"/>
+
+    <!-- Timing patterns (horizontal, row 6) -->
+    <rect x="56" y="42" width="7" height="7" fill="#000"/>
+    <rect x="70" y="42" width="7" height="7" fill="#000"/>
+    <rect x="84" y="42" width="7" height="7" fill="#000"/>
+
+    <!-- Timing patterns (vertical, col 6) -->
+    <rect x="42" y="56" width="7" height="7" fill="#000"/>
+    <rect x="42" y="70" width="7" height="7" fill="#000"/>
+    <rect x="42" y="84" width="7" height="7" fill="#000"/>
+
+    <!-- Data modules - scattered pattern to look realistic -->
+    <!-- Row 8-9 area -->
+    <rect x="56" y="56" width="7" height="7" fill="#000"/>
+    <rect x="70" y="56" width="7" height="7" fill="#000"/>
+    <rect x="84" y="56" width="7" height="7" fill="#000"/>
+    <rect x="98" y="56" width="7" height="7" fill="#000"/>
+    <rect x="119" y="56" width="7" height="7" fill="#000"/>
+    <rect x="140" y="56" width="7" height="7" fill="#000"/>
+
+    <rect x="63" y="63" width="7" height="7" fill="#000"/>
+    <rect x="77" y="63" width="7" height="7" fill="#000"/>
+    <rect x="105" y="63" width="7" height="7" fill="#000"/>
+    <rect x="126" y="63" width="7" height="7" fill="#000"/>
+    <rect x="140" y="63" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="70" width="7" height="7" fill="#000"/>
+    <rect x="77" y="70" width="7" height="7" fill="#000"/>
+    <rect x="91" y="70" width="7" height="7" fill="#000"/>
+    <rect x="112" y="70" width="7" height="7" fill="#000"/>
+    <rect x="133" y="70" width="7" height="7" fill="#000"/>
+
+    <rect x="63" y="77" width="7" height="7" fill="#000"/>
+    <rect x="84" y="77" width="7" height="7" fill="#000"/>
+    <rect x="98" y="77" width="7" height="7" fill="#000"/>
+    <rect x="119" y="77" width="7" height="7" fill="#000"/>
+    <rect x="140" y="77" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="84" width="7" height="7" fill="#000"/>
+    <rect x="70" y="84" width="7" height="7" fill="#000"/>
+    <rect x="91" y="84" width="7" height="7" fill="#000"/>
+    <rect x="105" y="84" width="7" height="7" fill="#000"/>
+    <rect x="126" y="84" width="7" height="7" fill="#000"/>
+
+    <rect x="63" y="91" width="7" height="7" fill="#000"/>
+    <rect x="77" y="91" width="7" height="7" fill="#000"/>
+    <rect x="98" y="91" width="7" height="7" fill="#000"/>
+    <rect x="112" y="91" width="7" height="7" fill="#000"/>
+    <rect x="133" y="91" width="7" height="7" fill="#000"/>
+
+    <!-- Bottom-right data area -->
+    <rect x="56" y="98" width="7" height="7" fill="#000"/>
+    <rect x="84" y="98" width="7" height="7" fill="#000"/>
+    <rect x="105" y="98" width="7" height="7" fill="#000"/>
+    <rect x="119" y="98" width="7" height="7" fill="#000"/>
+    <rect x="140" y="98" width="7" height="7" fill="#000"/>
+
+    <rect x="63" y="105" width="7" height="7" fill="#000"/>
+    <rect x="77" y="105" width="7" height="7" fill="#000"/>
+    <rect x="91" y="105" width="7" height="7" fill="#000"/>
+    <rect x="112" y="105" width="7" height="7" fill="#000"/>
+    <rect x="133" y="105" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="112" width="7" height="7" fill="#000"/>
+    <rect x="70" y="112" width="7" height="7" fill="#000"/>
+    <rect x="98" y="112" width="7" height="7" fill="#000"/>
+    <rect x="119" y="112" width="7" height="7" fill="#000"/>
+
+    <rect x="63" y="119" width="7" height="7" fill="#000"/>
+    <rect x="84" y="119" width="7" height="7" fill="#000"/>
+    <rect x="105" y="119" width="7" height="7" fill="#000"/>
+    <rect x="126" y="119" width="7" height="7" fill="#000"/>
+    <rect x="140" y="119" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="126" width="7" height="7" fill="#000"/>
+    <rect x="77" y="126" width="7" height="7" fill="#000"/>
+    <rect x="91" y="126" width="7" height="7" fill="#000"/>
+    <rect x="112" y="126" width="7" height="7" fill="#000"/>
+    <rect x="133" y="126" width="7" height="7" fill="#000"/>
+
+    <rect x="70" y="133" width="7" height="7" fill="#000"/>
+    <rect x="84" y="133" width="7" height="7" fill="#000"/>
+    <rect x="105" y="133" width="7" height="7" fill="#000"/>
+    <rect x="119" y="133" width="7" height="7" fill="#000"/>
+    <rect x="140" y="133" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="140" width="7" height="7" fill="#000"/>
+    <rect x="77" y="140" width="7" height="7" fill="#000"/>
+    <rect x="98" y="140" width="7" height="7" fill="#000"/>
+    <rect x="126" y="140" width="7" height="7" fill="#000"/>
+
+    <!-- Separator lines (row/col adjacent to finders) -->
+    <rect x="0" y="56" width="7" height="7" fill="#000"/>
+    <rect x="14" y="56" width="7" height="7" fill="#000"/>
+    <rect x="28" y="56" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="0" width="7" height="7" fill="#000"/>
+    <rect x="56" y="14" width="7" height="7" fill="#000"/>
+    <rect x="56" y="28" width="7" height="7" fill="#000"/>
+
+    <rect x="0" y="91" width="7" height="7" fill="#000"/>
+    <rect x="21" y="91" width="7" height="7" fill="#000"/>
+    <rect x="35" y="91" width="7" height="7" fill="#000"/>
+
+    <rect x="56" y="98" width="7" height="7" fill="#000"/>
+    <rect x="56" y="119" width="7" height="7" fill="#000"/>
+    <rect x="56" y="133" width="7" height="7" fill="#000"/>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 5. ADDRESS SECTION -->
+  <!-- ============================================ -->
+  <text x="250" y="412" fill="#6b7280" font-size="12" text-anchor="middle">Send to this address:</text>
+
+  <!-- Address box -->
+  <rect x="74" y="422" width="352" height="44" rx="8" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Address text (monospace) -->
+  <text x="90" y="449" fill="#1f2937" font-size="13.5" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', monospace">0x7a3b8C4e2f...ef91c2d8</text>
+
+  <!-- Copy icon button -->
+  <g transform="translate(388, 434)">
+    <rect x="-6" y="-6" width="28" height="28" rx="4" fill="transparent"/>
+    <rect x="2" y="0" width="11" height="13" rx="2" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+    <rect x="5" y="3" width="11" height="13" rx="2" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.5"/>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 6. STATUS STEPS -->
+  <!-- ============================================ -->
+
+  <!-- Step 1: Active - Waiting for payment -->
+  <circle cx="86" cy="502" r="6" fill="#3b82f6" class="pulse-dot">
+    <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="102" y="506" fill="#111827" font-size="14" font-weight="500">Waiting for payment...</text>
+
+  <!-- Step 2: Inactive -->
+  <circle cx="86" cy="530" r="5" fill="none" stroke="#d1d5db" stroke-width="2"/>
+  <text x="102" y="534" fill="#9ca3af" font-size="14">Confirming on blockchain</text>
+
+  <!-- Step 3: Inactive -->
+  <circle cx="86" cy="558" r="5" fill="none" stroke="#d1d5db" stroke-width="2"/>
+  <text x="102" y="562" fill="#9ca3af" font-size="14">Complete</text>
+
+  <!-- Connecting line between steps -->
+  <line x1="86" y1="508" x2="86" y2="525" stroke="#e5e7eb" stroke-width="1.5"/>
+  <line x1="86" y1="535" x2="86" y2="553" stroke="#e5e7eb" stroke-width="1.5"/>
+
+  <!-- ============================================ -->
+  <!-- 7. FOOTER -->
+  <!-- ============================================ -->
+  <line x1="50" y1="622" x2="450" y2="622" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="250" y="650" fill="#9ca3af" font-size="12" text-anchor="middle">Powered by OctopusWallet</text>
+</svg>

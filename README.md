@@ -140,6 +140,14 @@ Configurable: `approval_threshold`, `single_tx_limit`, `daily_limit`, `auto_rele
 | POST | `/api/v1/security/ip-whitelist` | Set IP whitelist |
 | GET | `/api/v1/security/ip-whitelist` | Get IP whitelist |
 
+## Hosted Checkout Page
+
+<p align="center">
+  <img src="docs/checkout-preview.svg" alt="Checkout Page" width="400" />
+</p>
+
+Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-click address copy, countdown timer, and real-time status updates via WebSocket.
+
 ## Payment Flow
 
 ```
