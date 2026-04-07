@@ -3,13 +3,6 @@
     <filter id="cardShadow" x="-5%" y="-2%" width="110%" height="110%">
       <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#000" flood-opacity="0.12"/>
     </filter>
-    <style>
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      .spinner { animation: spin 1s linear infinite; transform-origin: 250px 290px; }
-    </style>
   </defs>
 
   <!-- Background -->
@@ -31,10 +24,12 @@
   <text x="250" y="170" fill="#111827" font-size="32" font-weight="700" text-anchor="middle">0.0125</text>
   <text x="250" y="192" fill="#6b7280" font-size="13" text-anchor="middle">Ethereum (USDT)</text>
 
-  <!-- Spinner -->
-  <g class="spinner">
-    <circle cx="250" cy="260" r="20" fill="none" stroke="#dbeafe" stroke-width="4"/>
-    <path d="M250 240 a20 20 0 0 1 20 20" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round"/>
+  <!-- Spinner: translate to origin, rotate, translate back -->
+  <g transform="translate(250, 260)">
+    <circle cx="0" cy="0" r="20" fill="none" stroke="#dbeafe" stroke-width="4"/>
+    <path d="M0 -20 a20 20 0 0 1 20 20" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="1s" repeatCount="indefinite"/>
+    </path>
   </g>
 
   <!-- Confirming text -->
