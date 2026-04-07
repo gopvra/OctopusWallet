@@ -13,11 +13,15 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
 )
 
+// OnPaymentCompletedFunc is called when a payment transitions to completed.
+type OnPaymentCompletedFunc func(ctx context.Context, payment *models.Payment)
+
 type Service struct {
-	store    store.Store
-	registry *chain.Registry
-	webhook  *webhook.Service
-	configs  map[string]config.ChainConfig
+	store              store.Store
+	registry           *chain.Registry
+	webhook            *webhook.Service
+	configs            map[string]config.ChainConfig
+	onPaymentCompleted OnPaymentCompletedFunc
 }
 
 func NewService(s store.Store, registry *chain.Registry, wh *webhook.Service, configs map[string]config.ChainConfig) *Service {
@@ -27,6 +31,11 @@ func NewService(s store.Store, registry *chain.Registry, wh *webhook.Service, co
 		webhook:  wh,
 		configs:  configs,
 	}
+}
+
+// SetOnPaymentCompleted registers a callback for payment completion (used by sweep service).
+func (s *Service) SetOnPaymentCompleted(fn OnPaymentCompletedFunc) {
+	s.onPaymentCompleted = fn
 }
 
 // Start launches a monitoring goroutine for each registered chain.
@@ -165,6 +174,12 @@ func (s *Service) processIncomingTx(ctx context.Context, c chain.Chain, cfg conf
 
 	// Send webhook
 	s.sendPaymentWebhook(ctx, payment, status, txHash, int(confirmations))
+
+	// Trigger auto-sweep on completion
+	if status == models.PaymentStatusCompleted && s.onPaymentCompleted != nil {
+		payment.AmountReceived = tx.Amount
+		s.onPaymentCompleted(ctx, payment)
+	}
 }
 
 func (s *Service) updateConfirmations(ctx context.Context, c chain.Chain, cfg config.ChainConfig) {
@@ -189,6 +204,9 @@ func (s *Service) updateConfirmations(ctx context.Context, c chain.Chain, cfg co
 				continue
 			}
 			s.sendPaymentWebhook(ctx, &payment, models.PaymentStatusCompleted, *payment.TxHash, int(confirmations))
+			if s.onPaymentCompleted != nil {
+				s.onPaymentCompleted(ctx, &payment)
+			}
 		} else {
 			// Update confirmation count
 			if err := s.store.UpdatePaymentStatus(ctx, payment.ID, models.PaymentStatusConfirming, payment.TxHash, int(confirmations)); err != nil {

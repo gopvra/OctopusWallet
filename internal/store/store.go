@@ -36,6 +36,41 @@ type Store interface {
 	GetLastScannedBlock(ctx context.Context, chain string) (uint64, error)
 	SetLastScannedBlock(ctx context.Context, chain string, height uint64) error
 
+	// Sweep
+	UpsertMerchantCollectionAddress(ctx context.Context, addr *models.MerchantCollectionAddress) error
+	GetMerchantCollectionAddress(ctx context.Context, merchantID, chain string) (*models.MerchantCollectionAddress, error)
+	GetMerchantCollectionAddresses(ctx context.Context, merchantID string) ([]models.MerchantCollectionAddress, error)
+	CreateSweepTask(ctx context.Context, task *models.SweepTask) error
+	GetPendingSweepTasks(ctx context.Context) ([]models.SweepTask, error)
+	GetSweepTasksByMerchant(ctx context.Context, merchantID string) ([]models.SweepTask, error)
+	UpdateSweepTaskStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error
+	UpdateSweepTaskGasDeposit(ctx context.Context, id, gasDepositID string) error
+
+	// Cold/Hot Wallet
+	UpsertColdWalletConfig(ctx context.Context, cfg *models.ColdWalletConfig) error
+	GetColdWalletConfig(ctx context.Context, merchantID, chain string) (*models.ColdWalletConfig, error)
+	GetAllEnabledColdWalletConfigs(ctx context.Context) ([]models.ColdWalletConfig, error)
+	GetColdWalletConfigsByMerchant(ctx context.Context, merchantID string) ([]models.ColdWalletConfig, error)
+	CreateWalletTransfer(ctx context.Context, transfer *models.WalletTransfer) error
+	GetPendingWalletTransfers(ctx context.Context) ([]models.WalletTransfer, error)
+	GetWalletTransfersByMerchant(ctx context.Context, merchantID string) ([]models.WalletTransfer, error)
+	UpdateWalletTransferStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error
+
+	// Approval
+	UpsertApprovalConfig(ctx context.Context, cfg *models.ApprovalConfig) error
+	GetApprovalConfig(ctx context.Context, merchantID string) (*models.ApprovalConfig, error)
+	CreatePayoutApproval(ctx context.Context, approval *models.PayoutApproval) error
+	UpdatePayoutApprovalStatus(ctx context.Context, payoutID, approvalStatus string) error
+	GetDailyPayoutTotal(ctx context.Context, merchantID, chain string) (string, error)
+	IncrementDailyPayoutTotal(ctx context.Context, merchantID, chain, amount string) error
+
+	// Gas
+	CreateGasDeposit(ctx context.Context, deposit *models.GasDeposit) error
+	GetPendingGasDeposits(ctx context.Context) ([]models.GasDeposit, error)
+	UpdateGasDepositStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error
+	GetGasDepositBySweepTask(ctx context.Context, sweepTaskID string) (*models.GasDeposit, error)
+	CreateGasAlert(ctx context.Context, alert *models.GasAlert) error
+
 	// Lifecycle
 	Close() error
 }

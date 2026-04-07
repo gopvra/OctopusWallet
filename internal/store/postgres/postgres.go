@@ -166,12 +166,12 @@ func (s *Store) UpdatePaymentStatus(ctx context.Context, id, status string, txHa
 // --- Payouts ---
 
 func (s *Store) CreatePayout(ctx context.Context, p *models.Payout) error {
-	query := `INSERT INTO payouts (merchant_id, chain, token, to_address, amount)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, status, created_at, updated_at`
+	query := `INSERT INTO payouts (merchant_id, chain, token, to_address, amount, approval_status)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, status, approval_status, created_at, updated_at`
 	return s.db.QueryRowxContext(ctx, query,
-		p.MerchantID, p.Chain, p.Token, p.ToAddress, p.Amount).
-		Scan(&p.ID, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+		p.MerchantID, p.Chain, p.Token, p.ToAddress, p.Amount, p.ApprovalStatus).
+		Scan(&p.ID, &p.Status, &p.ApprovalStatus, &p.CreatedAt, &p.UpdatedAt)
 }
 
 func (s *Store) GetPayoutByID(ctx context.Context, id string) (*models.Payout, error) {
@@ -186,7 +186,7 @@ func (s *Store) GetPayoutByID(ctx context.Context, id string) (*models.Payout, e
 func (s *Store) GetPendingPayouts(ctx context.Context) ([]models.Payout, error) {
 	var payouts []models.Payout
 	err := s.db.SelectContext(ctx, &payouts,
-		"SELECT * FROM payouts WHERE status = 'pending' ORDER BY created_at")
+		"SELECT * FROM payouts WHERE status = 'pending' AND (approval_status = '' OR approval_status = 'approved') ORDER BY created_at")
 	return payouts, err
 }
 
@@ -214,5 +214,240 @@ func (s *Store) SetLastScannedBlock(ctx context.Context, chain string, height ui
 		`INSERT INTO chain_state (chain, last_scanned_block, updated_at) VALUES ($1, $2, now())
 		 ON CONFLICT (chain) DO UPDATE SET last_scanned_block = $2, updated_at = now()`,
 		chain, height)
+	return err
+}
+
+// --- Sweep ---
+
+func (s *Store) UpsertMerchantCollectionAddress(ctx context.Context, addr *models.MerchantCollectionAddress) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO merchant_collection_addresses (merchant_id, chain, address, sweep_threshold, is_active)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (merchant_id, chain) DO UPDATE
+		 SET address = $3, sweep_threshold = $4, is_active = $5, updated_at = now()`,
+		addr.MerchantID, addr.Chain, addr.Address, addr.SweepThreshold, addr.IsActive)
+	return err
+}
+
+func (s *Store) GetMerchantCollectionAddress(ctx context.Context, merchantID, chain string) (*models.MerchantCollectionAddress, error) {
+	var addr models.MerchantCollectionAddress
+	err := s.db.GetContext(ctx, &addr,
+		"SELECT * FROM merchant_collection_addresses WHERE merchant_id = $1 AND chain = $2 AND is_active = true",
+		merchantID, chain)
+	if err != nil {
+		return nil, err
+	}
+	return &addr, nil
+}
+
+func (s *Store) GetMerchantCollectionAddresses(ctx context.Context, merchantID string) ([]models.MerchantCollectionAddress, error) {
+	var addrs []models.MerchantCollectionAddress
+	err := s.db.SelectContext(ctx, &addrs,
+		"SELECT * FROM merchant_collection_addresses WHERE merchant_id = $1", merchantID)
+	return addrs, err
+}
+
+func (s *Store) CreateSweepTask(ctx context.Context, task *models.SweepTask) error {
+	query := `INSERT INTO sweep_tasks (merchant_id, payment_id, chain, token, from_address, to_address, amount)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, status, retry_count, created_at, updated_at`
+	return s.db.QueryRowxContext(ctx, query,
+		task.MerchantID, task.PaymentID, task.Chain, task.Token, task.FromAddress, task.ToAddress, task.Amount).
+		Scan(&task.ID, &task.Status, &task.RetryCount, &task.CreatedAt, &task.UpdatedAt)
+}
+
+func (s *Store) GetPendingSweepTasks(ctx context.Context) ([]models.SweepTask, error) {
+	var tasks []models.SweepTask
+	err := s.db.SelectContext(ctx, &tasks,
+		"SELECT * FROM sweep_tasks WHERE status IN ('pending', 'gas_needed') ORDER BY created_at")
+	return tasks, err
+}
+
+func (s *Store) GetSweepTasksByMerchant(ctx context.Context, merchantID string) ([]models.SweepTask, error) {
+	var tasks []models.SweepTask
+	err := s.db.SelectContext(ctx, &tasks,
+		"SELECT * FROM sweep_tasks WHERE merchant_id = $1 ORDER BY created_at DESC", merchantID)
+	return tasks, err
+}
+
+func (s *Store) UpdateSweepTaskStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE sweep_tasks SET status = $1, tx_hash = $2, error_message = $3, updated_at = now() WHERE id = $4",
+		status, txHash, errMsg, id)
+	return err
+}
+
+func (s *Store) UpdateSweepTaskGasDeposit(ctx context.Context, id, gasDepositID string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE sweep_tasks SET gas_deposit_id = $1, status = 'gas_needed', updated_at = now() WHERE id = $2",
+		gasDepositID, id)
+	return err
+}
+
+// --- Cold/Hot Wallet ---
+
+func (s *Store) UpsertColdWalletConfig(ctx context.Context, cfg *models.ColdWalletConfig) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO cold_wallet_configs (merchant_id, chain, cold_wallet_address, hot_wallet_max_balance, enabled)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (merchant_id, chain) DO UPDATE
+		 SET cold_wallet_address = $3, hot_wallet_max_balance = $4, enabled = $5, updated_at = now()`,
+		cfg.MerchantID, cfg.Chain, cfg.ColdWalletAddress, cfg.HotWalletMaxBalance, cfg.Enabled)
+	return err
+}
+
+func (s *Store) GetColdWalletConfig(ctx context.Context, merchantID, chain string) (*models.ColdWalletConfig, error) {
+	var cfg models.ColdWalletConfig
+	err := s.db.GetContext(ctx, &cfg,
+		"SELECT * FROM cold_wallet_configs WHERE merchant_id = $1 AND chain = $2", merchantID, chain)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (s *Store) GetAllEnabledColdWalletConfigs(ctx context.Context) ([]models.ColdWalletConfig, error) {
+	var configs []models.ColdWalletConfig
+	err := s.db.SelectContext(ctx, &configs,
+		"SELECT * FROM cold_wallet_configs WHERE enabled = true")
+	return configs, err
+}
+
+func (s *Store) GetColdWalletConfigsByMerchant(ctx context.Context, merchantID string) ([]models.ColdWalletConfig, error) {
+	var configs []models.ColdWalletConfig
+	err := s.db.SelectContext(ctx, &configs,
+		"SELECT * FROM cold_wallet_configs WHERE merchant_id = $1", merchantID)
+	return configs, err
+}
+
+func (s *Store) CreateWalletTransfer(ctx context.Context, transfer *models.WalletTransfer) error {
+	query := `INSERT INTO wallet_transfers (merchant_id, chain, token, from_address, to_address, amount, transfer_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, status, created_at, updated_at`
+	return s.db.QueryRowxContext(ctx, query,
+		transfer.MerchantID, transfer.Chain, transfer.Token, transfer.FromAddress, transfer.ToAddress, transfer.Amount, transfer.TransferType).
+		Scan(&transfer.ID, &transfer.Status, &transfer.CreatedAt, &transfer.UpdatedAt)
+}
+
+func (s *Store) GetPendingWalletTransfers(ctx context.Context) ([]models.WalletTransfer, error) {
+	var transfers []models.WalletTransfer
+	err := s.db.SelectContext(ctx, &transfers,
+		"SELECT * FROM wallet_transfers WHERE status = 'pending' ORDER BY created_at")
+	return transfers, err
+}
+
+func (s *Store) GetWalletTransfersByMerchant(ctx context.Context, merchantID string) ([]models.WalletTransfer, error) {
+	var transfers []models.WalletTransfer
+	err := s.db.SelectContext(ctx, &transfers,
+		"SELECT * FROM wallet_transfers WHERE merchant_id = $1 ORDER BY created_at DESC", merchantID)
+	return transfers, err
+}
+
+func (s *Store) UpdateWalletTransferStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE wallet_transfers SET status = $1, tx_hash = $2, error_message = $3, updated_at = now() WHERE id = $4",
+		status, txHash, errMsg, id)
+	return err
+}
+
+// --- Approval ---
+
+func (s *Store) UpsertApprovalConfig(ctx context.Context, cfg *models.ApprovalConfig) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO approval_configs (merchant_id, approval_threshold, single_tx_limit, daily_limit, auto_release, enabled)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (merchant_id) DO UPDATE
+		 SET approval_threshold = $2, single_tx_limit = $3, daily_limit = $4, auto_release = $5, enabled = $6, updated_at = now()`,
+		cfg.MerchantID, cfg.ApprovalThreshold, cfg.SingleTxLimit, cfg.DailyLimit, cfg.AutoRelease, cfg.Enabled)
+	return err
+}
+
+func (s *Store) GetApprovalConfig(ctx context.Context, merchantID string) (*models.ApprovalConfig, error) {
+	var cfg models.ApprovalConfig
+	err := s.db.GetContext(ctx, &cfg,
+		"SELECT * FROM approval_configs WHERE merchant_id = $1", merchantID)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (s *Store) CreatePayoutApproval(ctx context.Context, approval *models.PayoutApproval) error {
+	query := `INSERT INTO payout_approvals (payout_id, merchant_id, action, approver_id, approver_note)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at`
+	return s.db.QueryRowxContext(ctx, query,
+		approval.PayoutID, approval.MerchantID, approval.Action, approval.ApproverID, approval.ApproverNote).
+		Scan(&approval.ID, &approval.CreatedAt)
+}
+
+func (s *Store) UpdatePayoutApprovalStatus(ctx context.Context, payoutID, approvalStatus string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE payouts SET approval_status = $1, updated_at = now() WHERE id = $2",
+		approvalStatus, payoutID)
+	return err
+}
+
+func (s *Store) GetDailyPayoutTotal(ctx context.Context, merchantID, chain string) (string, error) {
+	var total sql.NullString
+	err := s.db.GetContext(ctx, &total,
+		"SELECT total_amount FROM payout_daily_totals WHERE merchant_id = $1 AND chain = $2 AND date = CURRENT_DATE",
+		merchantID, chain)
+	if err != nil || !total.Valid {
+		return "0", nil
+	}
+	return total.String, nil
+}
+
+func (s *Store) IncrementDailyPayoutTotal(ctx context.Context, merchantID, chain, amount string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO payout_daily_totals (merchant_id, chain, date, total_amount)
+		 VALUES ($1, $2, CURRENT_DATE, $3)
+		 ON CONFLICT (merchant_id, chain, date) DO UPDATE
+		 SET total_amount = (CAST(payout_daily_totals.total_amount AS NUMERIC) + CAST($3 AS NUMERIC))::TEXT,
+		     updated_at = now()`,
+		merchantID, chain, amount)
+	return err
+}
+
+// --- Gas ---
+
+func (s *Store) CreateGasDeposit(ctx context.Context, deposit *models.GasDeposit) error {
+	query := `INSERT INTO gas_deposits (chain, to_address, amount, sweep_task_id)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, status, created_at, updated_at`
+	return s.db.QueryRowxContext(ctx, query,
+		deposit.Chain, deposit.ToAddress, deposit.Amount, deposit.SweepTaskID).
+		Scan(&deposit.ID, &deposit.Status, &deposit.CreatedAt, &deposit.UpdatedAt)
+}
+
+func (s *Store) GetPendingGasDeposits(ctx context.Context) ([]models.GasDeposit, error) {
+	var deposits []models.GasDeposit
+	err := s.db.SelectContext(ctx, &deposits,
+		"SELECT * FROM gas_deposits WHERE status = 'pending' ORDER BY created_at")
+	return deposits, err
+}
+
+func (s *Store) UpdateGasDepositStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE gas_deposits SET status = $1, tx_hash = $2, error_message = $3, updated_at = now() WHERE id = $4",
+		status, txHash, errMsg, id)
+	return err
+}
+
+func (s *Store) GetGasDepositBySweepTask(ctx context.Context, sweepTaskID string) (*models.GasDeposit, error) {
+	var deposit models.GasDeposit
+	err := s.db.GetContext(ctx, &deposit,
+		"SELECT * FROM gas_deposits WHERE sweep_task_id = $1 ORDER BY created_at DESC LIMIT 1", sweepTaskID)
+	if err != nil {
+		return nil, err
+	}
+	return &deposit, nil
+}
+
+func (s *Store) CreateGasAlert(ctx context.Context, alert *models.GasAlert) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO gas_alerts (chain, station_address, balance, threshold) VALUES ($1, $2, $3, $4)",
+		alert.Chain, alert.StationAddress, alert.Balance, alert.Threshold)
 	return err
 }

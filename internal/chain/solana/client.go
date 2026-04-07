@@ -28,6 +28,51 @@ func (c *Client) Name() string           { return "solana" }
 func (c *Client) Type() chain.ChainType  { return chain.ChainTypeSolana }
 func (c *Client) NativeSymbol() string    { return "SOL" }
 
+func (c *Client) GetBalance(ctx context.Context, address string, token string) (string, error) {
+	if token == "" {
+		result, err := c.call(ctx, "getBalance", address)
+		if err != nil {
+			return "0", err
+		}
+		var resp struct {
+			Value uint64 `json:"value"`
+		}
+		if err := json.Unmarshal(result, &resp); err != nil {
+			return "0", err
+		}
+		return fmt.Sprintf("%d", resp.Value), nil
+	}
+	// SPL token balance
+	result, err := c.call(ctx, "getTokenAccountsByOwner", address,
+		map[string]string{"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+		map[string]string{"encoding": "jsonParsed"})
+	if err != nil {
+		return "0", err
+	}
+	var resp struct {
+		Value []struct {
+			Account struct {
+				Data struct {
+					Parsed struct {
+						Info struct {
+							TokenAmount struct {
+								Amount string `json:"amount"`
+							} `json:"tokenAmount"`
+						} `json:"info"`
+					} `json:"parsed"`
+				} `json:"data"`
+			} `json:"account"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(result, &resp); err != nil {
+		return "0", err
+	}
+	if len(resp.Value) > 0 {
+		return resp.Value[0].Account.Data.Parsed.Info.TokenAmount.Amount, nil
+	}
+	return "0", nil
+}
+
 func (c *Client) DeriveAddress(masterSeed []byte, merchantIndex, addressIndex uint32) (string, error) {
 	return DeriveAddress(masterSeed, merchantIndex, addressIndex)
 }

@@ -12,10 +12,13 @@ import (
 	"github.com/octopuswallet/octopuswallet/internal/chain/evm"
 	"github.com/octopuswallet/octopuswallet/internal/chain/solana"
 	"github.com/octopuswallet/octopuswallet/internal/chain/tron"
+	"github.com/octopuswallet/octopuswallet/internal/coldwallet"
 	"github.com/octopuswallet/octopuswallet/internal/config"
+	"github.com/octopuswallet/octopuswallet/internal/gasstation"
 	"github.com/octopuswallet/octopuswallet/internal/monitor"
 	"github.com/octopuswallet/octopuswallet/internal/payout"
 	"github.com/octopuswallet/octopuswallet/internal/store/postgres"
+	"github.com/octopuswallet/octopuswallet/internal/sweep"
 	"github.com/octopuswallet/octopuswallet/internal/wallet"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
 )
@@ -30,6 +33,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	seed, err := wallet.SeedFromMnemonic(cfg.Wallet.MasterSeed)
+	if err != nil {
+		slog.Error("failed to parse master seed", "error", err)
+		os.Exit(1)
+	}
+
 	store, err := postgres.New(cfg.Database.URL, cfg.Database.MaxOpenConns)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
@@ -37,38 +46,39 @@ func main() {
 	}
 	defer store.Close()
 
-	// Initialize chain registry
 	registry := chain.NewRegistry()
 	initChains(cfg, registry)
 
-	// Initialize webhook service
 	webhookSvc := webhook.NewService(cfg.Webhook.Timeout, cfg.Webhook.MaxRetries, cfg.Webhook.RetryBackoff)
 
-	// Initialize master seed
-	seed, err := wallet.SeedFromMnemonic(cfg.Wallet.MasterSeed)
-	if err != nil {
-		slog.Error("failed to parse master seed", "error", err)
-		os.Exit(1)
-	}
+	// Gas Station service
+	gasSvc := gasstation.NewService(store, registry, webhookSvc, cfg.GasStation)
 
-	// Initialize monitor service
+	// Monitor service
 	monitorSvc := monitor.NewService(store, registry, webhookSvc, cfg.Chains)
 
-	// Initialize payout service
+	// Sweep service (depends on gas station)
+	sweepSvc := sweep.NewService(store, registry, webhookSvc, gasSvc, seed, cfg.Chains)
+
+	// Wire sweep into monitor: trigger auto-sweep when payment completes
+	monitorSvc.SetOnPaymentCompleted(sweepSvc.OnPaymentCompleted)
+
+	// Payout service (with approval — only processes approved/auto-released payouts)
 	payoutSvc := payout.NewService(store, registry, webhookSvc, seed, cfg.Chains)
+
+	// Cold wallet service
+	coldSvc := coldwallet.NewService(store, registry, webhookSvc, seed, cfg.Chains)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
-		slog.Info("monitor started", "chains", registry.Names())
-		monitorSvc.Start(ctx)
-	}()
+	go monitorSvc.Start(ctx)
+	go payoutSvc.Start(ctx)
+	go sweepSvc.Start(ctx)
+	go gasSvc.Start(ctx)
+	go coldSvc.Start(ctx)
 
-	go func() {
-		slog.Info("payout service started")
-		payoutSvc.Start(ctx)
-	}()
+	slog.Info("worker started", "chains", registry.Names())
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -80,11 +90,7 @@ func main() {
 }
 
 func initChains(cfg *config.Config, registry *chain.Registry) {
-	evmChains := map[string]string{
-		"ethereum": "ETH",
-		"bsc":      "BNB",
-		"polygon":  "MATIC",
-	}
+	evmChains := map[string]string{"ethereum": "ETH", "bsc": "BNB", "polygon": "MATIC"}
 	for name, symbol := range evmChains {
 		chainCfg, ok := cfg.Chains[name]
 		if !ok || !chainCfg.Enabled {
@@ -96,36 +102,20 @@ func initChains(cfg *config.Config, registry *chain.Registry) {
 			continue
 		}
 		registry.Register(client)
-		slog.Info("chain initialized", "chain", name)
 	}
-
 	if solCfg, ok := cfg.Chains["solana"]; ok && solCfg.Enabled {
-		client, err := solana.NewClient(solCfg.RPCURL)
-		if err != nil {
-			slog.Warn("failed to initialize solana", "error", err)
-		} else {
+		if client, err := solana.NewClient(solCfg.RPCURL); err == nil {
 			registry.Register(client)
-			slog.Info("chain initialized", "chain", "solana")
 		}
 	}
-
 	if tronCfg, ok := cfg.Chains["tron"]; ok && tronCfg.Enabled {
-		client, err := tron.NewClient(tronCfg.RPCURL, tronCfg.APIKey)
-		if err != nil {
-			slog.Warn("failed to initialize tron", "error", err)
-		} else {
+		if client, err := tron.NewClient(tronCfg.RPCURL, tronCfg.APIKey); err == nil {
 			registry.Register(client)
-			slog.Info("chain initialized", "chain", "tron")
 		}
 	}
-
 	if btcCfg, ok := cfg.Chains["bitcoin"]; ok && btcCfg.Enabled {
-		client, err := bitcoin.NewClient(btcCfg.RPCURL, btcCfg.RPCUser, btcCfg.RPCPass, btcCfg.Network)
-		if err != nil {
-			slog.Warn("failed to initialize bitcoin", "error", err)
-		} else {
+		if client, err := bitcoin.NewClient(btcCfg.RPCURL, btcCfg.RPCUser, btcCfg.RPCPass, btcCfg.Network); err == nil {
 			registry.Register(client)
-			slog.Info("chain initialized", "chain", "bitcoin")
 		}
 	}
 }

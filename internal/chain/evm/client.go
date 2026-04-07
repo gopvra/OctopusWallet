@@ -40,6 +40,29 @@ func (c *Client) Name() string           { return c.name }
 func (c *Client) Type() chain.ChainType  { return chain.ChainTypeEVM }
 func (c *Client) NativeSymbol() string    { return c.nativeSymbol }
 
+func (c *Client) GetBalance(ctx context.Context, address string, token string) (string, error) {
+	addr := common.HexToAddress(address)
+	if token == "" {
+		balance, err := c.client.BalanceAt(ctx, addr, nil)
+		if err != nil {
+			return "0", err
+		}
+		return balance.String(), nil
+	}
+	// ERC-20 balance
+	tokenAddr := common.HexToAddress(token)
+	data, err := PackBalanceOf(addr)
+	if err != nil {
+		return "0", err
+	}
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{To: &tokenAddr, Data: data}, nil)
+	if err != nil {
+		return "0", err
+	}
+	balance := new(big.Int).SetBytes(result)
+	return balance.String(), nil
+}
+
 func (c *Client) DeriveAddress(masterSeed []byte, merchantIndex, addressIndex uint32) (string, error) {
 	return DeriveAddress(masterSeed, merchantIndex, addressIndex)
 }

@@ -7,11 +7,24 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig            `mapstructure:"server"`
-	Database DatabaseConfig          `mapstructure:"database"`
-	Wallet   WalletConfig            `mapstructure:"wallet"`
-	Chains   map[string]ChainConfig  `mapstructure:"chains"`
-	Webhook  WebhookConfig           `mapstructure:"webhook"`
+	Server     ServerConfig                    `mapstructure:"server"`
+	Database   DatabaseConfig                  `mapstructure:"database"`
+	Wallet     WalletConfig                    `mapstructure:"wallet"`
+	Chains     map[string]ChainConfig          `mapstructure:"chains"`
+	Webhook    WebhookConfig                   `mapstructure:"webhook"`
+	GasStation GasStationConfig                `mapstructure:"gas_station"`
+}
+
+type GasStationConfig struct {
+	Enabled bool                              `mapstructure:"enabled"`
+	Chains  map[string]GasStationChainConfig  `mapstructure:"chains"`
+}
+
+type GasStationChainConfig struct {
+	StationAddress    string `mapstructure:"station_address"`
+	StationPrivateKey string `mapstructure:"station_private_key"`
+	GasAmount         string `mapstructure:"gas_amount"`
+	LowBalanceAlert   string `mapstructure:"low_balance_alert"`
 }
 
 type ServerConfig struct {
@@ -59,6 +72,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("webhook.max_retries", 5)
 	v.SetDefault("webhook.retry_backoff", "30s")
 	v.SetDefault("webhook.timeout", "10s")
+	v.SetDefault("gas_station.enabled", false)
 
 	if path != "" {
 		v.SetConfigFile(path)
