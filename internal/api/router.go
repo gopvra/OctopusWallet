@@ -11,7 +11,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub) *gin.Engine {
+func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub, adminStore store.AdminStore) *gin.Engine {
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {

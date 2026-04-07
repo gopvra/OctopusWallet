@@ -238,6 +238,50 @@ Set via `config/config.yaml` or environment variables (prefix `OCTOPUS_`):
 | `gas_station.enabled` | - | Enable gas fee management |
 | `gas_station.chains.<name>.station_address` | - | Gas station address |
 
+## Admin Panel
+
+OctopusWallet includes a built-in admin management system. The admin API is served alongside the merchant API.
+
+**Frontend**: [OctopusWallet-Admin](https://github.com/gopvra/OctopusWallet-Admin) — React + TypeScript + Tailwind CSS dark-themed dashboard.
+
+### Admin Configuration
+
+```yaml
+admin:
+  jwt_secret: "your-secure-secret"     # JWT signing key (required)
+  default_user: "admin"                 # Default admin username
+  default_pass: "changeme"             # Default admin password
+  allowed_origins:                      # CORS origins for admin frontend
+    - "http://localhost:5173"
+```
+
+| Config | Environment Variable | Description |
+|--------|---------------------|-------------|
+| `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret |
+| `admin.default_user` | `OCTOPUS_ADMIN_DEFAULT_USER` | Default admin username |
+| `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password |
+
+### Admin Features
+
+- Dashboard with real-time statistics and charts
+- Merchant management (list, search, activate/deactivate)
+- Payment/payout/refund/batch-payout monitoring
+- Wallet and balance overview
+- Supported currencies management
+- Chain sync status monitoring
+- Admin user management with role-based access
+
+### Default Credentials
+
+On first startup, a default `super_admin` account is created:
+
+```
+Username: admin
+Password: changeme
+```
+
+> Change the default password immediately in production.
+
 ## License
 
 Apache License 2.0

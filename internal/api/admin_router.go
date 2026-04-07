@@ -16,6 +16,10 @@ func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret stri
 	payoutHandler := handlers.NewAdminPayoutHandler(adminStore)
 	walletHandler := handlers.NewAdminWalletHandler(adminStore)
 	chainStateHandler := handlers.NewAdminChainStateHandler(adminStore)
+	refundHandler := handlers.NewAdminRefundHandler(adminStore)
+	batchPayoutHandler := handlers.NewAdminBatchPayoutHandler(adminStore)
+	balanceHandler := handlers.NewAdminBalanceHandler(adminStore)
+	currencyHandler := handlers.NewAdminCurrencyHandler(adminStore)
 	adminUserHandler := handlers.NewAdminUserHandler(adminStore)
 
 	admin := r.Group("/api/admin/v1")
@@ -56,6 +60,20 @@ func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret stri
 
 		// Wallets
 		protected.GET("/wallets", walletHandler.List)
+
+		// Refunds
+		protected.GET("/refunds", refundHandler.List)
+		protected.GET("/refunds/:id", refundHandler.GetByID)
+
+		// Batch Payouts
+		protected.GET("/batch-payouts", batchPayoutHandler.List)
+		protected.GET("/batch-payouts/:id", batchPayoutHandler.GetByID)
+
+		// Balances
+		protected.GET("/balances", balanceHandler.List)
+
+		// Currencies
+		protected.GET("/currencies", currencyHandler.List)
 
 		// Chain State
 		protected.GET("/chain-state", chainStateHandler.List)
