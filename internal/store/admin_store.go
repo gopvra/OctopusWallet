@@ -72,6 +72,25 @@ type WalletFilter struct {
 	MerchantID string `form:"merchant_id"`
 }
 
+type RefundFilter struct {
+	PaginationParams
+	Status     string `form:"status"`
+	Chain      string `form:"chain"`
+	MerchantID string `form:"merchant_id"`
+}
+
+type BatchPayoutFilter struct {
+	PaginationParams
+	Status     string `form:"status"`
+	Chain      string `form:"chain"`
+	MerchantID string `form:"merchant_id"`
+}
+
+type BalanceFilter struct {
+	Chain      string `form:"chain"`
+	MerchantID string `form:"merchant_id"`
+}
+
 type DashboardStats struct {
 	TotalMerchants  int    `json:"total_merchants"`
 	ActiveMerchants int    `json:"active_merchants"`
@@ -132,6 +151,21 @@ type AdminStore interface {
 
 	// Chain State
 	ListChainStates(ctx context.Context) ([]models.ChainState, error)
+
+	// Refunds
+	ListRefunds(ctx context.Context, filter RefundFilter) (*PaginatedResult[models.Refund], error)
+	AdminGetRefundByID(ctx context.Context, id string) (*models.Refund, error)
+
+	// Batch Payouts
+	ListBatchPayouts(ctx context.Context, filter BatchPayoutFilter) (*PaginatedResult[models.BatchPayout], error)
+	AdminGetBatchPayoutByID(ctx context.Context, id string) (*models.BatchPayout, error)
+	AdminGetBatchPayoutItems(ctx context.Context, batchID string) ([]models.BatchPayoutItem, error)
+
+	// Balances
+	ListAllMerchantBalances(ctx context.Context, filter BalanceFilter) ([]models.MerchantBalance, error)
+
+	// Currencies
+	ListAllCurrencies(ctx context.Context) ([]models.SupportedCurrency, error)
 
 	// Dashboard
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
