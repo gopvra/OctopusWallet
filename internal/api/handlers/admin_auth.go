@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/auth"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"golang.org/x/crypto/bcrypt"
@@ -29,7 +30,7 @@ type LoginRequest struct {
 func (h *AdminAuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -37,22 +38,22 @@ func (h *AdminAuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		// Constant-time: run bcrypt even for non-existent users to prevent timing attacks
 		bcrypt.CompareHashAndPassword(dummyHash, []byte(req.Password))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		R.Fail(c, errcode.ErrUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		R.Fail(c, errcode.ErrUnauthorized)
 		return
 	}
 
 	tokens, err := auth.GenerateTokenPair(h.jwtSecret, user.ID, user.Username, user.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	R.OK(c, gin.H{
 		"user":  user,
 		"token": tokens,
 	})
@@ -63,44 +64,44 @@ func (h *AdminAuthHandler) Refresh(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	claims, err := auth.ValidateToken(h.jwtSecret, req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		R.Fail(c, errcode.ErrUnauthorized)
 		return
 	}
 
 	// Ensure this is a refresh token, not an access token
 	if claims.Issuer != "octopus-admin-refresh" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		R.Fail(c, errcode.ErrUnauthorized)
 		return
 	}
 
 	// Verify user still exists and is active
 	user, err := h.store.GetAdminUserByID(c.Request.Context(), claims.UserID)
 	if err != nil || !user.IsActive {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user account is no longer active"})
+		R.Fail(c, errcode.ErrUnauthorized)
 		return
 	}
 
 	tokens, err := auth.GenerateTokenPair(h.jwtSecret, user.ID, user.Username, user.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusOK, tokens)
+	R.OK(c, tokens)
 }
 
 func (h *AdminAuthHandler) Me(c *gin.Context) {
 	userID := c.GetString("admin_user_id")
 	user, err := h.store.GetAdminUserByID(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	R.OK(c, user)
 }

@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -31,7 +32,7 @@ type CreatePayoutRequest struct {
 func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 	var req CreatePayoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
@@ -39,30 +40,30 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 
 	// Validate chain exists
 	if _, err := h.registry.Get(req.Chain); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	// Validate amount is positive integer
 	if err := crypto.ValidateAmount(req.Amount); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	// Validate address format
 	if err := crypto.ValidateAddress(req.Chain, req.ToAddress); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	// Check approval config, limits, and determine approval status
 	approvalStatus, rejectReason, err := CheckPayoutLimits(c, h.store, merchantID, req.Chain, req.Amount)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check payout limits"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 	if rejectReason != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": rejectReason})
+		R.FailMsg(c, errcode.ErrBadRequest, rejectReason)
 		return
 	}
 
@@ -76,7 +77,7 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 	}
 
 	if err := h.store.CreatePayout(c.Request.Context(), payout); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create payout"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
@@ -88,7 +89,7 @@ func (h *PayoutHandler) CreatePayout(c *gin.Context) {
 		h.sendPendingApprovalWebhook(c, payout)
 	}
 
-	c.JSON(http.StatusCreated, payout)
+	R.OK(c, payout)
 }
 
 func (h *PayoutHandler) GetPayout(c *gin.Context) {
@@ -96,14 +97,14 @@ func (h *PayoutHandler) GetPayout(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	payout, err := h.store.GetPayoutByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if payout.MerchantID != merchantID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
-	c.JSON(http.StatusOK, payout)
+	R.OK(c, payout)
 }
 
 func (h *PayoutHandler) sendPendingApprovalWebhook(c *gin.Context, payout *models.Payout) {

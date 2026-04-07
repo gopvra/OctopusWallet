@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/config"
 )
@@ -43,5 +43,5 @@ func (h *GasStationHandler) GetStatus(c *gin.Context) {
 			Balance: balance,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"gas_stations": statuses})
+	R.OK(c, gin.H{"gas_stations": statuses})
 }

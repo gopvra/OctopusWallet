@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -19,10 +20,10 @@ func NewAdminDashboardHandler(s store.AdminStore) *AdminDashboardHandler {
 func (h *AdminDashboardHandler) Stats(c *gin.Context) {
 	stats, err := h.store.GetDashboardStats(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get stats"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, stats)
+	R.OK(c, stats)
 }
 
 func (h *AdminDashboardHandler) VolumeChart(c *gin.Context) {
@@ -33,19 +34,19 @@ func (h *AdminDashboardHandler) VolumeChart(c *gin.Context) {
 
 	points, err := h.store.GetVolumeChart(c.Request.Context(), days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get volume chart"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, points)
+	R.OK(c, points)
 }
 
 func (h *AdminDashboardHandler) ChainDistribution(c *gin.Context) {
 	dist, err := h.store.GetChainDistribution(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get chain distribution"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, dist)
+	R.OK(c, dist)
 }
 
 func (h *AdminDashboardHandler) RecentActivity(c *gin.Context) {
@@ -56,8 +57,8 @@ func (h *AdminDashboardHandler) RecentActivity(c *gin.Context) {
 
 	activity, err := h.store.GetRecentActivity(c.Request.Context(), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get recent activity"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, activity)
+	R.OK(c, activity)
 }

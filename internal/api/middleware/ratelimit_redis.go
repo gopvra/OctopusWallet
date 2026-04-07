@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/cache"
 )
 
@@ -33,7 +34,7 @@ func (rl *RedisRateLimiter) Middleware() gin.HandlerFunc {
 			return
 		}
 		if !allowed {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+			R.Abort(c, errcode.ErrRateLimited)
 			return
 		}
 		c.Next()

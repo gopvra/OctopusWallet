@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
@@ -20,14 +21,14 @@ func APIKeyAuth(s store.Store) gin.HandlerFunc {
 		}
 
 		if key == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing api key"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 
 		hash := crypto.HashAPIKey(key)
 		merchant, err := s.GetMerchantByAPIKeyHash(c.Request.Context(), hash)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid api key"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 

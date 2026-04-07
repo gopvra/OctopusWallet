@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"math/big"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/pkg/crypto"
@@ -28,36 +29,36 @@ type CreateRefundRequest struct {
 func (h *RefundHandler) CreateRefund(c *gin.Context) {
 	var req CreateRefundRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	merchantID := c.GetString("merchant_id")
 
 	if err := crypto.ValidateAmount(req.Amount); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	// Verify payment belongs to merchant and is completed
 	payment, err := h.store.GetPaymentByID(c.Request.Context(), req.PaymentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if payment.MerchantID != merchantID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "payment does not belong to this merchant"})
+		R.Fail(c, errcode.ErrForbidden)
 		return
 	}
 	if payment.Status != models.PaymentStatusCompleted {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "can only refund completed payments"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	// Validate refund amount does not exceed payment amount minus existing refunds
 	existingTotal, err := h.store.GetRefundTotalByPayment(c.Request.Context(), req.PaymentID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing refunds"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 	existing := new(big.Int)
@@ -67,12 +68,12 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 	received := new(big.Int)
 	received.SetString(payment.AmountReceived, 10)
 	if new(big.Int).Add(existing, refundAmt).Cmp(received) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "refund total would exceed payment amount received"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	if err := crypto.ValidateAddress(payment.Chain, req.ToAddress); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
@@ -87,11 +88,11 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 	}
 
 	if err := h.store.CreateRefund(c.Request.Context(), refund); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create refund"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusCreated, refund)
+	R.OK(c, refund)
 }
 
 func (h *RefundHandler) GetRefund(c *gin.Context) {
@@ -99,14 +100,14 @@ func (h *RefundHandler) GetRefund(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	refund, err := h.store.GetRefundByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "refund not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if refund.MerchantID != merchantID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "refund not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
-	c.JSON(http.StatusOK, refund)
+	R.OK(c, refund)
 }
 
 func (h *RefundHandler) ListRefundsByPayment(c *gin.Context) {
@@ -115,13 +116,13 @@ func (h *RefundHandler) ListRefundsByPayment(c *gin.Context) {
 	// Verify payment belongs to merchant
 	payment, err := h.store.GetPaymentByID(c.Request.Context(), paymentID)
 	if err != nil || payment.MerchantID != merchantID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	refunds, err := h.store.GetRefundsByPayment(c.Request.Context(), paymentID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list refunds"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"refunds": refunds})
+	R.OK(c, gin.H{"refunds": refunds})
 }

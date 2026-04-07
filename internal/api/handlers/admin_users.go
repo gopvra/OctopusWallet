@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -26,10 +27,10 @@ func NewAdminUserHandler(s store.AdminStore) *AdminUserHandler {
 func (h *AdminUserHandler) List(c *gin.Context) {
 	users, err := h.store.ListAdminUsers(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list admin users"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, users)
+	R.OK(c, users)
 }
 
 type CreateAdminUserRequest struct {
@@ -42,13 +43,13 @@ type CreateAdminUserRequest struct {
 func (h *AdminUserHandler) Create(c *gin.Context) {
 	var req CreateAdminUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
@@ -60,11 +61,11 @@ func (h *AdminUserHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.store.CreateAdminUser(c.Request.Context(), user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create admin user"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	R.OK(c, user)
 }
 
 type UpdateAdminUserRequest struct {
@@ -78,19 +79,19 @@ type UpdateAdminUserRequest struct {
 func (h *AdminUserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	if !isValidUUID(id) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	var req UpdateAdminUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	user, err := h.store.GetAdminUserByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "admin user not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 
@@ -101,43 +102,43 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 
 	if req.Password != "" {
 		if len(req.Password) < 12 || len(req.Password) > 128 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be 12-128 characters"})
+			R.Fail(c, errcode.ErrBadRequest)
 			return
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+			R.Fail(c, errcode.ErrInternalServer)
 			return
 		}
 		user.Password = string(hash)
 	}
 
 	if err := h.store.UpdateAdminUser(c.Request.Context(), user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update admin user"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	R.OK(c, user)
 }
 
 func (h *AdminUserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if !isValidUUID(id) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 	currentUserID := c.GetString("admin_user_id")
 
 	// Prevent deleting yourself
 	if id == currentUserID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete yourself"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	// Prevent deleting last super_admin
 	target, err := h.store.GetAdminUserByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "admin user not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if target.Role == models.RoleSuperAdmin {
@@ -149,14 +150,14 @@ func (h *AdminUserHandler) Delete(c *gin.Context) {
 			}
 		}
 		if superCount <= 1 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete the last super_admin"})
+			R.Fail(c, errcode.ErrBadRequest)
 			return
 		}
 	}
 
 	if err := h.store.DeleteAdminUser(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete admin user"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "admin user deleted"})
+	R.OK(c, gin.H{"message": "admin user deleted"})
 }

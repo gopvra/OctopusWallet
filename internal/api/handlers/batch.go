@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"math/big"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -34,14 +35,14 @@ type CreateBatchPayoutRequest struct {
 func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 	var req CreateBatchPayoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	merchantID := c.GetString("merchant_id")
 
 	if _, err := h.registry.Get(req.Chain); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -49,11 +50,11 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 	totalAmount := new(big.Int)
 	for i, item := range req.Items {
 		if err := crypto.ValidateAmount(item.Amount); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "item": i})
+			R.FailData(c, errcode.ErrBadRequest, gin.H{"detail": err.Error(), "item": i})
 			return
 		}
 		if err := crypto.ValidateAddress(req.Chain, item.ToAddress); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "item": i})
+			R.FailData(c, errcode.ErrBadRequest, gin.H{"detail": err.Error(), "item": i})
 			return
 		}
 		amt := new(big.Int)
@@ -70,7 +71,7 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 	}
 
 	if err := h.store.CreateBatchPayout(c.Request.Context(), batch); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create batch"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
@@ -104,7 +105,7 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 		resp["failed_items"] = failedItems
 		resp["warning"] = "some items failed to create"
 	}
-	c.JSON(http.StatusCreated, resp)
+	R.OK(c, resp)
 }
 
 func (h *BatchPayoutHandler) GetBatchPayout(c *gin.Context) {
@@ -112,23 +113,23 @@ func (h *BatchPayoutHandler) GetBatchPayout(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	batch, err := h.store.GetBatchPayoutByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if batch.MerchantID != merchantID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	items, _ := h.store.GetBatchPayoutItems(c.Request.Context(), id)
-	c.JSON(http.StatusOK, gin.H{"batch": batch, "items": items})
+	R.OK(c, gin.H{"batch": batch, "items": items})
 }
 
 func (h *BatchPayoutHandler) ListBatchPayouts(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	batches, err := h.store.GetBatchPayoutsByMerchant(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list batches"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"batches": batches})
+	R.OK(c, gin.H{"batches": batches})
 }

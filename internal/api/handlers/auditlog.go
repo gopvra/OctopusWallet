@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -25,8 +26,8 @@ func (h *AuditLogHandler) List(c *gin.Context) {
 	}
 	logs, err := h.store.GetAuditLogs(c.Request.Context(), merchantID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list audit logs"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"audit_logs": logs, "limit": limit, "offset": offset})
+	R.OK(c, gin.H{"audit_logs": logs, "limit": limit, "offset": offset})
 }

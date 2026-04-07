@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"net"
-	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 )
 
 // IPWhitelist restricts access to specified IPs per merchant.
@@ -73,6 +74,6 @@ func (w *IPWhitelist) Middleware() gin.HandlerFunc {
 			}
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "IP not whitelisted"})
+		R.Abort(c, errcode.ErrIPNotWhitelisted)
 	}
 }

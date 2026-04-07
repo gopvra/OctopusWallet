@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/auth"
 )
 
@@ -12,25 +13,25 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 
 		claims, err := auth.ValidateToken(secret, parts[1])
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			R.Abort(c, errcode.ErrAdminTokenInvalid)
 			return
 		}
 
 		// Reject refresh tokens used as access tokens
 		if claims.Issuer != "octopus-admin" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token type"})
+			R.Abort(c, errcode.ErrAdminTokenInvalid)
 			return
 		}
 
@@ -45,7 +46,7 @@ func RequireSuperAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := c.GetString("admin_role")
 		if role != "super_admin" {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "super admin access required"})
+			R.Abort(c, errcode.ErrAdminInsufficientRole)
 			return
 		}
 		c.Next()

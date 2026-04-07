@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
 	"github.com/octopuswallet/octopuswallet/internal/cache"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/config"
@@ -17,8 +18,11 @@ import (
 func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub, adminStore store.AdminStore, redis *cache.Client) *gin.Engine {
 	r := gin.Default()
 
+	// Global middleware: language detection for i18n responses
+	r.Use(middleware.LangMiddleware())
+
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
+		R.OK(c, gin.H{"status": "ok", "chains": registry.Names()})
 	})
 
 	// WebSocket for real-time payment status

@@ -6,11 +6,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 )
 
 const maxIdempotencyEntries = 10000
@@ -135,24 +136,24 @@ func RequestHMAC() gin.HandlerFunc {
 
 		timestamp := c.GetHeader("X-Request-Timestamp")
 		if timestamp == "" {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing X-Request-Timestamp"})
+			R.Abort(c, errcode.ErrBadRequest)
 			return
 		}
 
 		ts, err := time.Parse(time.RFC3339, timestamp)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid timestamp format"})
+			R.Abort(c, errcode.ErrBadRequest)
 			return
 		}
 		if time.Since(ts).Abs() > 5*time.Minute {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "request timestamp expired"})
+			R.Abort(c, errcode.ErrTimestampExpired)
 			return
 		}
 
 		// Read body for signature verification
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+			R.Abort(c, errcode.ErrBadRequest)
 			return
 		}
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
@@ -160,7 +161,7 @@ func RequestHMAC() gin.HandlerFunc {
 		// Get merchant's API key hash for HMAC computation
 		merchant, exists := c.Get("merchant")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 
@@ -170,7 +171,7 @@ func RequestHMAC() gin.HandlerFunc {
 		}
 		m, ok := merchant.(apiKeyHolder)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "merchant context missing for request signing"})
+			R.Abort(c, errcode.ErrUnauthorized)
 			return
 		}
 		secret := m.GetAPIKeyHash()
@@ -183,7 +184,7 @@ func RequestHMAC() gin.HandlerFunc {
 		expectedSig := hex.EncodeToString(mac.Sum(nil))
 
 		if !hmac.Equal([]byte(sig), []byte(expectedSig)) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid request signature"})
+			R.Abort(c, errcode.ErrInvalidSignature)
 			return
 		}
 

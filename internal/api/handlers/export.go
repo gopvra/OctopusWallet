@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -25,12 +27,12 @@ func (h *ExportHandler) ExportPayments(c *gin.Context) {
 
 	payments, err := h.store.GetPaymentsByMerchantDateRange(c.Request.Context(), merchantID, from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to export"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	if format == "json" {
-		c.JSON(http.StatusOK, gin.H{"payments": payments})
+		R.OK(c, gin.H{"payments": payments})
 		return
 	}
 
@@ -60,12 +62,12 @@ func (h *ExportHandler) ExportPayouts(c *gin.Context) {
 
 	payouts, err := h.store.GetPayoutsByMerchantDateRange(c.Request.Context(), merchantID, from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to export"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	if format == "json" {
-		c.JSON(http.StatusOK, gin.H{"payouts": payouts})
+		R.OK(c, gin.H{"payouts": payouts})
 		return
 	}
 

@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -18,13 +19,13 @@ func NewAdminBalanceHandler(s store.AdminStore) *AdminBalanceHandler {
 func (h *AdminBalanceHandler) List(c *gin.Context) {
 	var filter store.BalanceFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 	balances, err := h.store.ListAllMerchantBalances(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list balances"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, balances)
+	R.OK(c, balances)
 }
