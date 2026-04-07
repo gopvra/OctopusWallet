@@ -175,10 +175,13 @@ func (s *Service) processIncomingTx(ctx context.Context, c chain.Chain, cfg conf
 	// Send webhook
 	s.sendPaymentWebhook(ctx, payment, status, txHash, int(confirmations))
 
-	// Trigger auto-sweep on completion
-	if status == models.PaymentStatusCompleted && s.onPaymentCompleted != nil {
+	// On completion: update merchant balance + trigger auto-sweep
+	if status == models.PaymentStatusCompleted {
 		payment.AmountReceived = tx.Amount
-		s.onPaymentCompleted(ctx, payment)
+		s.store.UpdateMerchantBalance(ctx, payment.MerchantID, payment.Chain, payment.Token, tx.Amount, "0")
+		if s.onPaymentCompleted != nil {
+			s.onPaymentCompleted(ctx, payment)
+		}
 	}
 }
 
@@ -204,6 +207,7 @@ func (s *Service) updateConfirmations(ctx context.Context, c chain.Chain, cfg co
 				continue
 			}
 			s.sendPaymentWebhook(ctx, &payment, models.PaymentStatusCompleted, *payment.TxHash, int(confirmations))
+			s.store.UpdateMerchantBalance(ctx, payment.MerchantID, payment.Chain, payment.Token, payment.AmountReceived, "0")
 			if s.onPaymentCompleted != nil {
 				s.onPaymentCompleted(ctx, &payment)
 			}

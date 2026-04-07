@@ -8,13 +8,13 @@ export function LoginPage() {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    localStorage.setItem('api_key', apiKey);
+    sessionStorage.setItem('api_key', apiKey);
     try {
       await api.getProfile();
       navigate('/dashboard');
     } catch {
       setError('Invalid API key');
-      localStorage.removeItem('api_key');
+      sessionStorage.removeItem('api_key');
     }
   };
 

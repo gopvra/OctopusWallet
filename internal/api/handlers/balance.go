@@ -5,15 +5,17 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
 type BalanceHandler struct {
-	store store.Store
+	store       store.Store
+	ipWhitelist *middleware.IPWhitelist
 }
 
-func NewBalanceHandler(s store.Store) *BalanceHandler {
-	return &BalanceHandler{store: s}
+func NewBalanceHandler(s store.Store, ipw *middleware.IPWhitelist) *BalanceHandler {
+	return &BalanceHandler{store: s, ipWhitelist: ipw}
 }
 
 func (h *BalanceHandler) GetBalances(c *gin.Context) {
@@ -78,6 +80,10 @@ func (h *BalanceHandler) SetIPWhitelist(c *gin.Context) {
 	if err := h.store.SetMerchantIPWhitelist(c.Request.Context(), merchantID, req.IPs); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set IP whitelist"})
 		return
+	}
+	// Sync middleware so IP restriction takes effect immediately
+	if h.ipWhitelist != nil {
+		h.ipWhitelist.SetWhitelist(merchantID, req.IPs)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "IP whitelist updated", "ips": req.IPs})
 }

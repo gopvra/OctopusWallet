@@ -132,7 +132,7 @@ func (s *Service) processSweep(ctx context.Context, task *models.SweepTask) {
 		return
 	}
 
-	merchantIndex := merchantIDToIndex(task.MerchantID)
+	merchantIndex := crypto.MerchantIDToIndex(task.MerchantID)
 	privKey, err := chainImpl.DerivePrivateKey(s.seed, merchantIndex, uint32(wallet.DerivationIndex))
 	if err != nil {
 		errMsg := "failed to derive key: " + err.Error()
@@ -206,10 +206,3 @@ func (s *Service) sendSweepWebhook(ctx context.Context, task *models.SweepTask, 
 	go s.webhook.Send(ctx, merchant.WebhookURL, merchant.APIKeyHash, eventType, data)
 }
 
-func merchantIDToIndex(id string) uint32 {
-	var sum uint32
-	for _, b := range []byte(id) {
-		sum = sum*31 + uint32(b)
-	}
-	return sum & 0x7FFFFFFF
-}

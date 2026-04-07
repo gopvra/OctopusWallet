@@ -72,7 +72,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 
 	// Derive a fresh address
 	// merchantIndex is derived from first 4 bytes of merchant UUID for deterministic mapping
-	merchantIndex := merchantIDToIndex(merchantID)
+	merchantIndex := crypto.MerchantIDToIndex(merchantID)
 	address, err := chainImpl.DeriveAddress(h.seed, merchantIndex, uint32(nextIndex))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to derive address"})
@@ -132,11 +132,3 @@ func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	c.JSON(http.StatusOK, payment)
 }
 
-// merchantIDToIndex converts a UUID merchant ID to a uint32 index for HD derivation.
-func merchantIDToIndex(id string) uint32 {
-	var sum uint32
-	for _, b := range []byte(id) {
-		sum = sum*31 + uint32(b)
-	}
-	return sum & 0x7FFFFFFF // ensure non-negative
-}
