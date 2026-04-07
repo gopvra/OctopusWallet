@@ -29,7 +29,7 @@ func (h *AdminUserHandler) List(c *gin.Context) {
 type CreateAdminUserRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Password string `json:"password" binding:"required,min=8"`
 	Role     string `json:"role" binding:"required,oneof=admin super_admin"`
 }
 
@@ -90,6 +90,10 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 	user.IsActive = req.IsActive
 
 	if req.Password != "" {
+		if len(req.Password) < 8 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
+			return
+		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
@@ -108,6 +112,14 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 
 func (h *AdminUserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+	currentUserID := c.GetString("admin_user_id")
+
+	// Prevent deleting yourself
+	if id == currentUserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete yourself"})
+		return
+	}
+
 	if err := h.store.DeleteAdminUser(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete admin user"})
 		return

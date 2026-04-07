@@ -68,6 +68,12 @@ func (h *AdminAuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Ensure this is a refresh token, not an access token
+	if claims.Issuer != "octopus-admin-refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+
 	tokens, err := auth.GenerateTokenPair(h.jwtSecret, claims.UserID, claims.Username, claims.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
