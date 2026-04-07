@@ -35,6 +35,7 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 
 	rl := middleware.NewRateLimiter(rate.Limit(100), 200)
 	idempotency := middleware.NewIdempotencyStore()
+	ipWhitelist := middleware.NewIPWhitelist()
 
 	merchantHandler := handlers.NewMerchantHandler(s)
 	paymentHandler := handlers.NewPaymentHandler(s, registry, seed)
@@ -47,7 +48,10 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	refundHandler := handlers.NewRefundHandler(s)
 	currencyHandler := handlers.NewCurrencyHandler(s, registry)
 	batchHandler := handlers.NewBatchPayoutHandler(s, registry)
-	balanceHandler := handlers.NewBalanceHandler(s)
+	balanceHandler := handlers.NewBalanceHandler(s, ipWhitelist)
+	paymentLinkHandler := handlers.NewPaymentLinkHandler(s, registry)
+	exportHandler := handlers.NewExportHandler(s)
+	auditLogHandler := handlers.NewAuditLogHandler(s)
 
 	v1 := r.Group("/api/v1")
 	v1.Use(rl.Middleware())
@@ -56,11 +60,14 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	v1.POST("/merchants/register", merchantHandler.Register)
 	v1.GET("/currencies", currencyHandler.ListCurrencies)
 	v1.GET("/rates", currencyHandler.GetExchangeRate)
+	v1.GET("/payment-links/:id", paymentLinkHandler.GetPublic)
 
 	// Authenticated endpoints
 	auth := v1.Group("")
 	auth.Use(middleware.APIKeyAuth(s))
+	auth.Use(ipWhitelist.Middleware())
 	auth.Use(middleware.RequestHMAC())
+	auth.Use(middleware.AuditLog(s))
 	{
 		// Merchant
 		auth.GET("/merchants/profile", merchantHandler.GetProfile)
@@ -109,6 +116,17 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 
 		// Gas station
 		auth.GET("/gas/status", gasHandler.GetStatus)
+
+		// Payment Links
+		auth.POST("/payment-links", paymentLinkHandler.Create)
+		auth.GET("/payment-links", paymentLinkHandler.List)
+
+		// Export (CSV/JSON)
+		auth.GET("/export/payments", exportHandler.ExportPayments)
+		auth.GET("/export/payouts", exportHandler.ExportPayouts)
+
+		// Audit Logs
+		auth.GET("/audit-logs", auditLogHandler.List)
 
 		// IP Whitelist
 		auth.POST("/security/ip-whitelist", balanceHandler.SetIPWhitelist)

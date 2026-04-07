@@ -1,20 +1,28 @@
-const BASE = '/api/v1';
+const BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const apiKey = localStorage.getItem('api_key');
+  const apiKey = sessionStorage.getItem('api_key');
   if (apiKey) headers['X-API-Key'] = apiKey;
 
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'request failed');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || 'request failed');
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
   }
-  return res.json();
 }
 
 export const api = {
@@ -36,6 +44,7 @@ export const api = {
 
   // Refunds
   createRefund: (data: any) => request('POST', '/refunds/create', data),
+  listRefunds: (paymentId: string) => request<any>('GET', `/payments/${paymentId}/refunds`),
 
   // Batch
   createBatchPayout: (data: any) => request('POST', '/payouts/batch', data),
@@ -60,6 +69,28 @@ export const api = {
   setCollectionAddress: (data: any) =>
     request('POST', '/sweep/collection-address', data),
   getCollectionAddresses: () => request<any>('GET', '/sweep/collection-address'),
+
+  // Cold Wallet
+  getColdWalletConfig: () => request<any>('GET', '/cold-wallet/config'),
+  setColdWalletConfig: (data: any) => request('POST', '/cold-wallet/config', data),
+  getColdWalletTransfers: () => request<any>('GET', '/cold-wallet/transfers'),
+
+  // Gas Station
+  getGasStatus: () => request<any>('GET', '/gas/status'),
+
+  // Payment Links
+  createPaymentLink: (data: any) => request('POST', '/payment-links', data),
+  listPaymentLinks: () => request<any>('GET', '/payment-links'),
+
+  // Export
+  exportPaymentsCSV: (from: string, to: string) =>
+    `${BASE}/export/payments?format=csv&from=${from}&to=${to}`,
+  exportPayoutsCSV: (from: string, to: string) =>
+    `${BASE}/export/payouts?format=csv&from=${from}&to=${to}`,
+
+  // Audit Logs
+  getAuditLogs: (limit = 50, offset = 0) =>
+    request<any>('GET', `/audit-logs?limit=${limit}&offset=${offset}`),
 
   // Settings
   getIPWhitelist: () => request<any>('GET', '/security/ip-whitelist'),

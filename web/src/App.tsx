@@ -5,9 +5,11 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PaymentsPage } from './pages/dashboard/PaymentsPage';
 import { PayoutsPage } from './pages/dashboard/PayoutsPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
+import { RefundsPage } from './pages/dashboard/RefundsPage';
+import { SweepPage } from './pages/dashboard/SweepPage';
 
 function DashboardLayout() {
-  const isLoggedIn = !!localStorage.getItem('api_key');
+  const isLoggedIn = !!sessionStorage.getItem('api_key');
   if (!isLoggedIn) return <Navigate to="/login" />;
 
   return (
@@ -17,10 +19,12 @@ function DashboardLayout() {
         <NavLink to="/dashboard" label="Dashboard" />
         <NavLink to="/dashboard/payments" label="Payments" />
         <NavLink to="/dashboard/payouts" label="Payouts" />
+        <NavLink to="/dashboard/refunds" label="Refunds" />
+        <NavLink to="/dashboard/sweeps" label="Auto-Sweep" />
         <NavLink to="/dashboard/settings" label="Settings" />
         <div className="absolute bottom-4 left-4 right-4">
           <button
-            onClick={() => { localStorage.removeItem('api_key'); window.location.href = '/login'; }}
+            onClick={() => { sessionStorage.removeItem('api_key'); window.location.href = '/login'; }}
             className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-white"
           >
             Logout
@@ -52,6 +56,8 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="payouts" element={<PayoutsPage />} />
+          <Route path="refunds" element={<RefundsPage />} />
+          <Route path="sweeps" element={<SweepPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" />} />

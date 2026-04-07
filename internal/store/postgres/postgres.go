@@ -674,3 +674,72 @@ func (s *Store) GetPayoutsByMerchant(ctx context.Context, merchantID string, lim
 		merchantID, limit, offset)
 	return payouts, err
 }
+
+// --- Payment Links ---
+
+func (s *Store) CreatePaymentLink(ctx context.Context, link *models.PaymentLink) error {
+	query := `INSERT INTO payment_links (merchant_id, chain, token, amount, currency, description, redirect_url, is_reusable)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, is_active, uses_count, created_at`
+	return s.db.QueryRowxContext(ctx, query,
+		link.MerchantID, link.Chain, link.Token, link.Amount, link.Currency, link.Description, link.RedirectURL, link.IsReusable).
+		Scan(&link.ID, &link.IsActive, &link.UsesCount, &link.CreatedAt)
+}
+
+func (s *Store) GetPaymentLinkByID(ctx context.Context, id string) (*models.PaymentLink, error) {
+	var link models.PaymentLink
+	err := s.db.GetContext(ctx, &link, "SELECT * FROM payment_links WHERE id = $1 AND is_active = true", id)
+	if err != nil {
+		return nil, err
+	}
+	return &link, nil
+}
+
+func (s *Store) GetPaymentLinksByMerchant(ctx context.Context, merchantID string) ([]models.PaymentLink, error) {
+	var links []models.PaymentLink
+	err := s.db.SelectContext(ctx, &links,
+		"SELECT * FROM payment_links WHERE merchant_id = $1 ORDER BY created_at DESC", merchantID)
+	return links, err
+}
+
+func (s *Store) IncrementPaymentLinkUses(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE payment_links SET uses_count = uses_count + 1 WHERE id = $1", id)
+	return err
+}
+
+// --- Audit Logs ---
+
+func (s *Store) CreateAuditLog(ctx context.Context, log *models.AuditLog) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO audit_logs (merchant_id, action, resource_type, resource_id, ip_address)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		log.MerchantID, log.Action, log.ResourceType, log.ResourceID, log.IPAddress)
+	return err
+}
+
+func (s *Store) GetAuditLogs(ctx context.Context, merchantID string, limit, offset int) ([]models.AuditLog, error) {
+	var logs []models.AuditLog
+	err := s.db.SelectContext(ctx, &logs,
+		"SELECT * FROM audit_logs WHERE merchant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+		merchantID, limit, offset)
+	return logs, err
+}
+
+// --- Export ---
+
+func (s *Store) GetPaymentsByMerchantDateRange(ctx context.Context, merchantID, from, to string) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := s.db.SelectContext(ctx, &payments,
+		`SELECT * FROM payments WHERE merchant_id = $1 AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		 ORDER BY created_at DESC`, merchantID, from, to)
+	return payments, err
+}
+
+func (s *Store) GetPayoutsByMerchantDateRange(ctx context.Context, merchantID, from, to string) ([]models.Payout, error) {
+	var payouts []models.Payout
+	err := s.db.SelectContext(ctx, &payouts,
+		`SELECT * FROM payouts WHERE merchant_id = $1 AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		 ORDER BY created_at DESC`, merchantID, from, to)
+	return payouts, err
+}
