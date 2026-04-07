@@ -6,7 +6,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (apiKey) headers['X-API-Key'] = apiKey;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const res = await fetch(`${BASE}${path}`, {
@@ -16,12 +16,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       signal: controller.signal,
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
+      const err = await res.json().catch(() => ({ error: 'request failed' }));
       throw new Error(err.error || 'request failed');
     }
     return res.json();
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeoutId);
   }
 }
 

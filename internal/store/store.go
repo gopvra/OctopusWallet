@@ -75,6 +75,7 @@ type Store interface {
 	CreateRefund(ctx context.Context, refund *models.Refund) error
 	GetRefundByID(ctx context.Context, id string) (*models.Refund, error)
 	GetRefundsByPayment(ctx context.Context, paymentID string) ([]models.Refund, error)
+	GetRefundTotalByPayment(ctx context.Context, paymentID string) (string, error)
 	GetPendingRefunds(ctx context.Context) ([]models.Refund, error)
 	UpdateRefundStatus(ctx context.Context, id, status string, txHash *string, errMsg *string) error
 

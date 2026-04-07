@@ -8,6 +8,8 @@ interface PaymentUpdate {
   amount_received?: string;
 }
 
+const MAX_RETRIES = 5;
+
 export function usePaymentStatus(paymentId: string) {
   const [status, setStatus] = useState<PaymentUpdate | null>(null);
   const [connected, setConnected] = useState(false);
@@ -17,43 +19,54 @@ export function usePaymentStatus(paymentId: string) {
   const connect = useCallback(() => {
     if (!paymentId) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/payments/${paymentId}`);
-    wsRef.current = ws;
+    let unmounted = false;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
 
-    ws.onopen = () => {
-      setConnected(true);
-      retriesRef.current = 0;
-    };
+    function connect() {
+      if (unmounted) return;
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as PaymentUpdate;
-        setStatus(data);
-      } catch { /* ignore malformed messages */ }
-    };
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/payments/${paymentId}`);
+      wsRef.current = ws;
 
-    ws.onclose = () => {
-      setConnected(false);
-      // Reconnect with exponential backoff (max 30s)
-      const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 30000);
-      retriesRef.current++;
-      setTimeout(() => {
-        if (wsRef.current === ws) connect();
-      }, delay);
-    };
+      ws.onopen = () => {
+        retriesRef.current = 0; // reset on successful connect
+      };
 
-    ws.onerror = () => ws.close();
-  }, [paymentId]);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as PaymentUpdate;
+          setStatus(data);
+          // Stop reconnecting if payment is terminal
+          if (data.status === 'completed' || data.status === 'expired') {
+            retriesRef.current = MAX_RETRIES;
+          }
+        } catch { /* ignore malformed messages */ }
+      };
+
+      ws.onclose = () => {
+        if (unmounted) return;
+        if (retriesRef.current < MAX_RETRIES) {
+          const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 16000);
+          retriesRef.current++;
+          reconnectTimer = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
 
   useEffect(() => {
     connect();
     return () => {
-      if (wsRef.current) {
-        const ws = wsRef.current;
-        wsRef.current = null;
-        ws.close();
-      }
+      unmounted = true;
+      clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [connect]);
 

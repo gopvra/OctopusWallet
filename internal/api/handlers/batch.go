@@ -74,25 +74,16 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 		return
 	}
 
-	// Create individual items with approval check per item
-	var failedItems int
-	for _, item := range req.Items {
+	// Create individual items (each will become a payout)
+	var failedItems []int
+	for i, item := range req.Items {
 		batchItem := &models.BatchPayoutItem{
 			BatchID:   batch.ID,
 			ToAddress: item.ToAddress,
 			Amount:    item.Amount,
 		}
 		if err := h.store.CreateBatchPayoutItem(c.Request.Context(), batchItem); err != nil {
-			failedItems++
-			continue
-		}
-
-		// Check approval limits per item (same rules as single payout)
-		approvalStatus, rejectReason, _ := CheckPayoutLimits(c, h.store, merchantID, req.Chain, item.Amount)
-		if rejectReason != "" {
-			errMsg := rejectReason
-			batchItem.ErrorMessage = &errMsg
-			failedItems++
+			failedItems = append(failedItems, i)
 			continue
 		}
 
@@ -108,10 +99,17 @@ func (h *BatchPayoutHandler) CreateBatchPayout(c *gin.Context) {
 			failedItems++
 			continue
 		}
-		h.store.IncrementDailyPayoutTotal(c.Request.Context(), merchantID, req.Chain, item.Amount)
+		if err := h.store.CreatePayout(c.Request.Context(), payout); err != nil {
+			failedItems = append(failedItems, i)
+		}
 	}
 
-	c.JSON(http.StatusCreated, batch)
+	resp := gin.H{"batch": batch}
+	if len(failedItems) > 0 {
+		resp["failed_items"] = failedItems
+		resp["warning"] = "some items failed to create"
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 func (h *BatchPayoutHandler) GetBatchPayout(c *gin.Context) {

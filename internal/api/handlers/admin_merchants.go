@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/store"
+	"github.com/octopuswallet/octopuswallet/pkg/crypto"
 )
 
 type AdminMerchantHandler struct {
@@ -57,6 +58,11 @@ func (h *AdminMerchantHandler) Update(c *gin.Context) {
 		WebhookURL string `json:"webhook_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := crypto.ValidateWebhookURL(req.WebhookURL); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

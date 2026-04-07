@@ -35,6 +35,11 @@ func (h *MerchantHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if err := crypto.ValidateWebhookURL(req.WebhookURL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	apiKey, err := crypto.GenerateAPIKey()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate api key"})

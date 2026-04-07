@@ -54,6 +54,23 @@ func (h *RefundHandler) CreateRefund(c *gin.Context) {
 		return
 	}
 
+	// Validate refund amount does not exceed payment amount minus existing refunds
+	existingTotal, err := h.store.GetRefundTotalByPayment(c.Request.Context(), req.PaymentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing refunds"})
+		return
+	}
+	existing := new(big.Int)
+	existing.SetString(existingTotal, 10)
+	refundAmt := new(big.Int)
+	refundAmt.SetString(req.Amount, 10)
+	received := new(big.Int)
+	received.SetString(payment.AmountReceived, 10)
+	if new(big.Int).Add(existing, refundAmt).Cmp(received) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refund total would exceed payment amount received"})
+		return
+	}
+
 	if err := crypto.ValidateAddress(payment.Chain, req.ToAddress); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

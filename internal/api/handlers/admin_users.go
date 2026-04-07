@@ -134,6 +134,26 @@ func (h *AdminUserHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// Prevent deleting last super_admin
+	target, err := h.store.GetAdminUserByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "admin user not found"})
+		return
+	}
+	if target.Role == models.RoleSuperAdmin {
+		users, _ := h.store.ListAdminUsers(c.Request.Context())
+		superCount := 0
+		for _, u := range users {
+			if u.Role == models.RoleSuperAdmin && u.IsActive {
+				superCount++
+			}
+		}
+		if superCount <= 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete the last super_admin"})
+			return
+		}
+	}
+
 	if err := h.store.DeleteAdminUser(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete admin user"})
 		return
