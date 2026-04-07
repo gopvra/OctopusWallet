@@ -334,7 +334,8 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | Supported Currencies API | ✓ | ✓ | ✓ |
 | Balance/Ledger | ✓ | ✓ | ✓ |
 | Pagination | ✓ | ✓ | ✓ |
-| Web Dashboard | ✓ | ✓ | ✓ |
+| Admin Dashboard | ✓ | ✓ | ✓ (React, dark-theme) |
+| Real-time WebSocket | - | - | ✓ |
 | Self-hosted | - | - | ✓ |
 | Open Source | - | - | ✓ (Apache 2.0) |
 
@@ -351,18 +352,95 @@ Set via `config/config.yaml` or environment variables (prefix `OCTOPUS_`):
 | `gas_station.enabled` | - | Enable gas fee management |
 | `gas_station.chains.<name>.station_address` | - | Gas station address |
 
-Frontend environment variable: `VITE_API_BASE` — override API base URL (default: `/api/v1`).
+## Admin Dashboard
 
-## Database Migrations
+OctopusWallet ships with a full-featured admin panel for platform operators. The admin API runs alongside the merchant API — no additional services required.
 
-Migrations are in `migrations/` and run in order:
+**Repository**: [OctopusWallet-Admin](https://github.com/gopvra/OctopusWallet-Admin)
 
-| File | Description |
-|------|-------------|
-| `001_init.sql` | Core tables: merchants, wallets, payments, payouts |
-| `002_enterprise_features.sql` | Sweep, cold wallet, gas station, approval config |
-| `003_invoices_refunds_ledger.sql` | Invoices, refunds, merchant balances, batch payouts |
-| `004_payment_links_audit.sql` | Payment links, audit logs, payment tolerance fields |
+<p align="center">
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/dashboard-preview.svg" alt="Admin Dashboard" width="80%" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/login-preview.svg" alt="Admin Login" width="45%" />
+  </a>
+  <a href="https://github.com/gopvra/OctopusWallet-Admin">
+    <img src="https://raw.githubusercontent.com/gopvra/OctopusWallet-Admin/claude/octopus-admin-system-sFukw/docs/architecture.svg" alt="Architecture" width="45%" />
+  </a>
+</p>
+
+### Admin Capabilities
+
+| Category | Features |
+|----------|----------|
+| **Dashboard** | Real-time stats, payment volume charts, chain distribution, recent activity feed |
+| **Merchants** | List, search, detail view, activate/deactivate, edit webhook URL |
+| **Payments** | Monitor all payments, filter by status/chain/merchant, full transaction detail |
+| **Payouts** | Track outgoing payouts, approval status, transaction hashes |
+| **Refunds** | View refund requests, processing status, error tracking |
+| **Batch Payouts** | Batch operation overview with per-item breakdown and progress |
+| **Wallets** | Browse all HD-derived addresses across chains and merchants |
+| **Balances** | Merchant available/pending balance per chain and token |
+| **Currencies** | View and manage supported currencies and tokens per chain |
+| **Chain Status** | Real-time blockchain sync state and block height per chain |
+| **Admin Users** | Role-based access control (super_admin / admin), CRUD management |
+| **Security** | JWT auth, login rate limiting, CORS whitelist, security headers, CSP |
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Go + Gin + JWT + PostgreSQL (built into this repo) |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS v4 |
+| Data | TanStack Query + TanStack Table + Recharts |
+| State | Zustand + React Router v7 |
+
+### Quick Start
+
+```bash
+# 1. Configure admin in config.yaml (see below)
+# 2. Start OctopusWallet server (admin API included automatically)
+make run-server
+
+# 3. In another terminal, start the admin frontend
+git clone https://github.com/gopvra/OctopusWallet-Admin.git
+cd OctopusWallet-Admin
+npm install && npm run dev
+# Open http://localhost:5173
+```
+
+### Admin Configuration
+
+```yaml
+admin:
+  jwt_secret: "your-secure-secret"     # JWT signing key (required)
+  default_user: "admin"                 # Default admin username
+  default_pass: "changeme"             # Default admin password
+  allowed_origins:                      # CORS origins for admin frontend
+    - "http://localhost:5173"
+    - "https://admin.yourdomain.com"
+```
+
+| Config | Environment Variable | Description |
+|--------|---------------------|-------------|
+| `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret |
+| `admin.default_user` | `OCTOPUS_ADMIN_DEFAULT_USER` | Default admin username |
+| `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password |
+
+### Default Credentials
+
+On first startup, a default `super_admin` account is created:
+
+```
+Username: admin
+Password: changeme
+```
+
+> **Important:** Change the default password immediately in production.
 
 ## License
 
