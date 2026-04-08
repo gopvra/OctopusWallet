@@ -223,26 +223,79 @@ func (c *Client) GetTransactionConfirmations(ctx context.Context, txHash string)
 }
 
 func (c *Client) SendTransaction(ctx context.Context, req chain.SendRequest) (string, error) {
-	// Create transaction
-	createData, err := c.apiCall(ctx, "/wallet/createtransaction", map[string]interface{}{
-		"to_address":    req.ToAddress,
-		"owner_address": req.FromAddress,
-		"amount":        req.Amount,
-	})
+	var rawTx json.RawMessage
+	var err error
+
+	if req.Token == "" {
+		// --- TRX native transfer ---
+		rawTx, err = c.apiCall(ctx, "/wallet/createtransaction", map[string]interface{}{
+			"to_address":    req.ToAddress,
+			"owner_address": req.FromAddress,
+			"amount":        req.Amount,
+		})
+	} else {
+		// --- TRC-20 token transfer ---
+		toHex, hexErr := TronAddressToHex(req.ToAddress)
+		if hexErr != nil {
+			return "", fmt.Errorf("invalid to_address: %w", hexErr)
+		}
+		amount := new(big.Int)
+		amount.SetString(req.Amount, 10)
+		paddedTo := fmt.Sprintf("%064s", toHex[2:])
+		paddedAmt := fmt.Sprintf("%064x", amount)
+
+		triggerResp, triggerErr := c.apiCall(ctx, "/wallet/triggersmartcontract", map[string]interface{}{
+			"owner_address":     req.FromAddress,
+			"contract_address":  req.Token,
+			"function_selector": "transfer(address,uint256)",
+			"parameter":         paddedTo + paddedAmt,
+			"fee_limit":         100000000,
+			"call_value":        0,
+		})
+		if triggerErr != nil {
+			return "", fmt.Errorf("trigger TRC-20 transfer: %w", triggerErr)
+		}
+		var resp struct {
+			Transaction json.RawMessage `json:"transaction"`
+		}
+		if jsonErr := json.Unmarshal(triggerResp, &resp); jsonErr != nil {
+			return "", fmt.Errorf("parse trigger response: %w", jsonErr)
+		}
+		rawTx = resp.Transaction
+	}
 	if err != nil {
 		return "", fmt.Errorf("create tron transaction: %w", err)
 	}
 
-	// Sign and broadcast would require signing with the private key
-	// For now, return the raw transaction for external signing
-	var tx struct {
-		TxID string `json:"txID"`
-	}
-	if err := json.Unmarshal(createData, &tx); err != nil {
-		return "", err
+	// Sign
+	privKeyHex := fmt.Sprintf("%x", req.PrivateKey)
+	signedData, err := c.apiCall(ctx, "/wallet/gettransactionsign", map[string]interface{}{
+		"transaction": json.RawMessage(rawTx),
+		"privateKey":  privKeyHex,
+	})
+	if err != nil {
+		return "", fmt.Errorf("sign tron transaction: %w", err)
 	}
 
-	return tx.TxID, fmt.Errorf("tron transaction signing not yet implemented")
+	// Broadcast
+	broadcastData, err := c.apiCall(ctx, "/wallet/broadcasttransaction", json.RawMessage(signedData))
+	if err != nil {
+		return "", fmt.Errorf("broadcast tron transaction: %w", err)
+	}
+
+	var result struct {
+		Result bool `json:"result"`
+	}
+	json.Unmarshal(broadcastData, &result)
+	if !result.Result {
+		return "", fmt.Errorf("tron broadcast failed")
+	}
+
+	var signedTx struct {
+		TxID string `json:"txID"`
+	}
+	json.Unmarshal(signedData, &signedTx)
+	return signedTx.TxID, nil
 }
 
 func (c *Client) EstimateFee(ctx context.Context, req chain.SendRequest) (string, error) {
