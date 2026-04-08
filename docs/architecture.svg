@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0a1628"/>
+    </linearGradient>
+    <linearGradient id="backendGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3730a3"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="adminGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#134e4a"/>
+    </linearGradient>
+    <linearGradient id="merchantGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="dbGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#14532d"/>
+    </linearGradient>
+    <linearGradient id="redisGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </linearGradient>
+    <linearGradient id="chainGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+    <filter id="glow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+    </marker>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.4"/>
+    </pattern>
+  </defs>
+
+  <rect width="960" height="560" fill="url(#bgGrad)"/>
+  <rect width="960" height="560" fill="url(#grid)" opacity="0.25"/>
+
+  <!-- Title -->
+  <text x="480" y="32" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#e2e8f0" letter-spacing="2">OCTOPUSWALLET SYSTEM ARCHITECTURE</text>
+  <line x1="280" y1="42" x2="680" y2="42" stroke="#334155" stroke-width="1"/>
+
+  <!-- ======================== -->
+  <!-- CONNECTION LINES -->
+  <!-- ======================== -->
+
+  <!-- Admin → Backend -->
+  <line x1="220" y1="150" x2="340" y2="195" stroke="#2dd4bf" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <text x="260" y="162" font-family="monospace" font-size="8" fill="#2dd4bf">Admin API + JWT + RBAC</text>
+
+  <!-- Merchant → Backend -->
+  <line x1="220" y1="310" x2="340" y2="260" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <text x="248" y="296" font-family="monospace" font-size="8" fill="#a78bfa">Merchant API + HMAC</text>
+
+  <!-- WebSocket -->
+  <path d="M220,330 Q310,370 400,275" fill="none" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,4" marker-end="url(#arr)" opacity="0.7"/>
+  <text x="290" y="355" font-family="monospace" font-size="8" fill="#c084fc">WebSocket</text>
+
+  <!-- Backend → PostgreSQL -->
+  <line x1="440" y1="295" x2="380" y2="395" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <text x="385" y="350" font-family="monospace" font-size="8" fill="#4ade80">GORM</text>
+
+  <!-- Backend → Redis -->
+  <line x1="520" y1="295" x2="580" y2="395" stroke="#f87171" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <text x="545" y="350" font-family="monospace" font-size="8" fill="#f87171">Cache</text>
+
+  <!-- Backend → Blockchains -->
+  <line x1="560" y1="195" x2="670" y2="120" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <line x1="560" y1="220" x2="670" y2="200" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <line x1="560" y1="245" x2="670" y2="280" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+  <line x1="560" y1="260" x2="670" y2="350" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr)"/>
+
+  <!-- ======================== -->
+  <!-- BACKEND CENTER BOX -->
+  <!-- ======================== -->
+  <g filter="url(#glow)">
+    <rect x="340" y="170" width="220" height="125" rx="12" fill="url(#backendGrad)" stroke="#6366f1" stroke-width="1.2"/>
+  </g>
+  <!-- Cute octopus mini icon -->
+  <g transform="translate(450, 200)">
+    <ellipse cx="0" cy="0" rx="12" ry="13" fill="#a5b4fc" opacity="0.3"/>
+    <circle cx="-4" cy="-2" r="2" fill="#e2e8f0"/>
+    <circle cx="4" cy="-2" r="2" fill="#e2e8f0"/>
+    <path d="M-3 4 Q0 7 3 4" fill="none" stroke="#e2e8f0" stroke-width="0.8"/>
+    <g fill="none" stroke="#a5b4fc" stroke-width="1.2" stroke-linecap="round" opacity="0.5">
+      <path d="M-10 10 Q-13 16 -10 18"/>
+      <path d="M-5 12 Q-6 17 -3 19"/>
+      <path d="M5 12 Q6 17 3 19"/>
+      <path d="M10 10 Q13 16 10 18"/>
+    </g>
+  </g>
+  <text x="450" y="235" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#e2e8f0">OctopusWallet</text>
+  <text x="450" y="253" text-anchor="middle" font-family="monospace" font-size="10" fill="#a5b4fc">Go + Gin + GORM</text>
+  <text x="450" y="267" text-anchor="middle" font-family="monospace" font-size="9" fill="#818cf8">WebAuthn · RBAC · i18n</text>
+  <text x="450" y="281" text-anchor="middle" font-family="monospace" font-size="8" fill="#6366f1">Unified Response (errcode)</text>
+
+  <!-- ======================== -->
+  <!-- ADMIN FRONTEND -->
+  <!-- ======================== -->
+  <g filter="url(#glow)">
+    <rect x="40" y="105" width="180" height="95" rx="10" fill="url(#adminGrad)" stroke="#2dd4bf" stroke-width="1"/>
+  </g>
+  <text x="130" y="136" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#e2e8f0">Admin Frontend</text>
+  <text x="130" y="154" text-anchor="middle" font-family="monospace" font-size="9" fill="#99f6e4">React 18 + TypeScript + Vite</text>
+  <text x="130" y="168" text-anchor="middle" font-family="monospace" font-size="8" fill="#5eead4">Tailwind · i18next (5 lang)</text>
+  <text x="130" y="182" text-anchor="middle" font-family="monospace" font-size="8" fill="#2dd4bf">WebAuthn · Sonner · Zustand</text>
+
+  <!-- ======================== -->
+  <!-- MERCHANT FRONTEND -->
+  <!-- ======================== -->
+  <g filter="url(#glow)">
+    <rect x="40" y="265" width="180" height="80" rx="10" fill="url(#merchantGrad)" stroke="#a78bfa" stroke-width="1"/>
+  </g>
+  <text x="130" y="296" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#e2e8f0">Merchant Frontend</text>
+  <text x="130" y="314" text-anchor="middle" font-family="monospace" font-size="9" fill="#ddd6fe">React + TypeScript</text>
+  <text x="130" y="328" text-anchor="middle" font-family="monospace" font-size="8" fill="#c4b5fd">Checkout · QR · Real-time</text>
+
+  <!-- ======================== -->
+  <!-- POSTGRESQL -->
+  <!-- ======================== -->
+  <rect x="290" y="395" width="150" height="70" rx="10" fill="url(#dbGrad)" stroke="#4ade80" stroke-width="1"/>
+  <ellipse cx="365" cy="416" rx="16" ry="6" fill="none" stroke="#bbf7d0" stroke-width="1" opacity="0.7"/>
+  <line x1="349" y1="416" x2="349" y2="428" stroke="#bbf7d0" stroke-width="1" opacity="0.7"/>
+  <line x1="381" y1="416" x2="381" y2="428" stroke="#bbf7d0" stroke-width="1" opacity="0.7"/>
+  <ellipse cx="365" cy="428" rx="16" ry="6" fill="none" stroke="#bbf7d0" stroke-width="1" opacity="0.7"/>
+  <text x="365" y="452" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#e2e8f0">PostgreSQL</text>
+  <text x="365" y="462" text-anchor="middle" font-family="monospace" font-size="8" fill="#4ade80">via GORM ORM</text>
+
+  <!-- ======================== -->
+  <!-- REDIS -->
+  <!-- ======================== -->
+  <rect x="500" y="395" width="150" height="70" rx="10" fill="url(#redisGrad)" stroke="#f87171" stroke-width="1"/>
+  <!-- Redis icon (diamond) -->
+  <polygon points="575,412 590,422 575,432 560,422" fill="none" stroke="#fca5a5" stroke-width="1.2" opacity="0.8"/>
+  <text x="575" y="452" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#e2e8f0">Redis</text>
+  <text x="575" y="462" text-anchor="middle" font-family="monospace" font-size="8" fill="#f87171">Rate Limit · Idempotency</text>
+
+  <!-- ======================== -->
+  <!-- BLOCKCHAIN NETWORKS -->
+  <!-- ======================== -->
+  <text x="740" y="90" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1.5">BLOCKCHAIN NETWORKS</text>
+
+  <rect x="672" y="102" width="136" height="32" rx="8" fill="url(#chainGrad)" stroke="#f97316" stroke-width="0.8"/>
+  <text x="740" y="123" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fed7aa">Bitcoin</text>
+
+  <rect x="672" y="184" width="136" height="32" rx="8" fill="url(#chainGrad)" stroke="#f97316" stroke-width="0.8"/>
+  <text x="740" y="205" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fed7aa">Ethereum / BSC / Polygon</text>
+
+  <rect x="672" y="264" width="136" height="32" rx="8" fill="url(#chainGrad)" stroke="#f97316" stroke-width="0.8"/>
+  <text x="740" y="285" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fed7aa">TRON</text>
+
+  <rect x="672" y="336" width="136" height="32" rx="8" fill="url(#chainGrad)" stroke="#f97316" stroke-width="0.8"/>
+  <text x="740" y="357" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#fed7aa">Solana</text>
+
+  <!-- ======================== -->
+  <!-- FEATURES BADGES -->
+  <!-- ======================== -->
+  <g font-family="monospace" font-size="8" text-anchor="middle">
+    <rect x="672" y="408" width="136" height="100" rx="8" fill="#0f172a" stroke="#334155" stroke-width="0.8"/>
+    <text x="740" y="424" fill="#94a3b8" font-size="9" font-weight="600">KEY FEATURES</text>
+    <text x="740" y="440" fill="#6366f1">WebAuthn / FIDO2</text>
+    <text x="740" y="452" fill="#2dd4bf">RBAC (3 roles, 23 perms)</text>
+    <text x="740" y="464" fill="#fb923c">HD Wallet (BIP-39/32/44)</text>
+    <text x="740" y="476" fill="#4ade80">Auto-Sweep + Cold/Hot</text>
+    <text x="740" y="488" fill="#f87171">Rate Limit + Idempotency</text>
+    <text x="740" y="500" fill="#a78bfa">5-Language i18n</text>
+  </g>
+
+  <!-- Legend -->
+  <g font-family="system-ui, sans-serif" font-size="9" fill="#64748b">
+    <line x1="60" y1="530" x2="85" y2="530" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="6,3"/>
+    <text x="92" y="534">REST API</text>
+    <line x1="150" y1="530" x2="175" y2="530" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="3,4"/>
+    <text x="182" y="534">WebSocket</text>
+    <line x1="250" y1="530" x2="275" y2="530" stroke="#4ade80" stroke-width="1.2" stroke-dasharray="6,3"/>
+    <text x="282" y="534">GORM</text>
+    <line x1="320" y1="530" x2="345" y2="530" stroke="#f87171" stroke-width="1.2" stroke-dasharray="6,3"/>
+    <text x="352" y="534">Redis Cache</text>
+  </g>
+
+  <text x="480" y="552" text-anchor="middle" font-family="monospace" font-size="8" fill="#334155">OctopusWallet v2.0 — Go + React + GORM + Redis + WebAuthn</text>
+</svg>
