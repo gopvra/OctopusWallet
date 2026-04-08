@@ -1,6 +1,14 @@
 # OctopusWallet
 
-Open-source multi-chain merchant payment gateway. Self-hosted alternative to BitPay / CoinsPaid with enterprise features including auto-sweep, cold/hot wallet separation, withdrawal approval workflows, gas fee management, payment links, audit logging, RBAC admin panel, and Redis-backed caching.
+<p align="center">
+  <img src="docs/octopus-logo.svg" alt="OctopusWallet" width="120" />
+</p>
+
+<p align="center">
+  <strong>Open-source multi-chain cryptocurrency payment gateway</strong>
+</p>
+
+Self-hosted alternative to BitPay / CoinsPaid with enterprise features including auto-sweep, cold/hot wallet separation, withdrawal approval workflows, gas fee management, payment links, audit logging, RBAC admin panel, Redis-backed caching, and WebAuthn biometric authentication.
 
 ## Hosted Checkout Page
 
@@ -348,6 +356,7 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | **Random Password Generation** | If `admin.default_pass` is empty, a secure random password is generated and logged at startup |
 | **CORS Custom Headers** | CORS configuration exposes API-key and signature headers for cross-origin clients |
 | **WebSocket Hardening** | Origin validation, per-IP connection limits, UUID format validation on payment IDs |
+| **WebAuthn / FIDO2** | Passkey login with fingerprint, Face ID, security keys |
 | **Private Key Zeroing** | Key material wiped from memory after use |
 | **HD Wallet** | BIP-39/32/44 deterministic address derivation |
 | **Cold/Hot Separation** | Auto-transfer excess funds to cold storage |
@@ -499,6 +508,26 @@ admin:
 | `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret (required — server refuses to start if empty) |
 | `admin.default_user` | `OCTOPUS_ADMIN_DEFAULT_USER` | Default admin username |
 | `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password (random generated if empty) |
+
+### WebAuthn / Biometric Authentication
+
+Admin users can register passkeys (fingerprint, Face ID, Windows Hello, security keys) for passwordless login:
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/auth/webauthn/login/begin` | No | Start passkey authentication |
+| POST | `/auth/webauthn/login/finish` | No | Complete authentication, returns JWT |
+| POST | `/auth/webauthn/register/begin` | JWT | Start passkey registration |
+| POST | `/auth/webauthn/register/finish` | JWT | Complete registration |
+| GET | `/auth/webauthn/credentials` | JWT | List registered passkeys |
+| DELETE | `/auth/webauthn/credentials/:id` | JWT | Remove a passkey |
+
+Configure in `config.yaml`:
+```yaml
+admin:
+  webauthn_rp_id: "yourdomain.com"        # Relying Party ID (your domain)
+  webauthn_origin: "https://admin.yourdomain.com"  # Expected origin
+```
 
 ### Default Credentials
 
