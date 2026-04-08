@@ -1,6 +1,6 @@
 # OctopusWallet
 
-Open-source multi-chain merchant payment gateway. Self-hosted alternative to BitPay / CoinsPaid with enterprise features including auto-sweep, cold/hot wallet separation, withdrawal approval workflows, gas fee management, payment links, and audit logging.
+Open-source multi-chain merchant payment gateway. Self-hosted alternative to BitPay / CoinsPaid with enterprise features including auto-sweep, cold/hot wallet separation, withdrawal approval workflows, gas fee management, payment links, audit logging, RBAC admin panel, and Redis-backed caching.
 
 ## Hosted Checkout Page
 
@@ -27,11 +27,11 @@ Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-cli
 
 ```
                     ┌──────────────┐
-  Merchant API ───> │  API Server  │ ──── PostgreSQL
-  Dashboard UI ───> │  (+ Web UI)  │
+  Merchant API ───> │  API Server  │ ──── PostgreSQL (via GORM)
+  Dashboard UI ───> │  (+ Web UI)  │ ──── Redis (cache + rate limit)
                     └──────────────┘
                     ┌──────────────┐
-  Blockchains ───> │   Worker     │ ──── PostgreSQL
+  Blockchains ───> │   Worker     │ ──── PostgreSQL (via GORM)
                     │  - Monitor   │
                     │  - Payout    │
                     │  - Refund    │
@@ -42,6 +42,13 @@ Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-cli
                           │
                     Webhook ──────> Merchant
 ```
+
+**Data layer:** All database access uses [GORM](https://gorm.io/) (`gorm.io/gorm` + `gorm.io/driver/postgres`). The previous sqlx/raw-SQL layer has been fully replaced — all 108 queries are now expressed through the GORM query builder.
+
+**Caching layer:** [go-redis/v9](https://github.com/redis/go-redis) provides:
+- **Rate limiting** — sliding-window algorithm backed by Redis sorted sets
+- **Idempotency store** — `SET NX` with TTL for deduplication
+- **Graceful degradation** — falls back to in-memory stores when Redis is unavailable
 
 ### Worker Services
 
@@ -57,11 +64,12 @@ Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-cli
 ## Quick Start
 
 ```bash
-# 1. Start PostgreSQL
-docker-compose up -d postgres
+# 1. Start PostgreSQL + Redis
+docker-compose up -d postgres redis
 
 # 2. Configure
 cp config/config.example.yaml config/config.yaml
+# Edit config.yaml — set wallet seed, database URL, redis.addr, admin.jwt_secret
 
 # 3. Run migrations
 DATABASE_URL="postgres://octopus:octopus@localhost:5432/octopus_wallet?sslmode=disable" make migrate
@@ -75,10 +83,12 @@ make web-install  # Install npm dependencies
 make web-dev      # Vite dev server with HMR
 ```
 
+> **Note:** Redis is optional. If Redis is unreachable the server starts normally and falls back to in-memory rate limiting and idempotency stores.
+
 ### Docker (full stack)
 
 ```bash
-docker-compose up -d   # Starts postgres + server + worker
+docker-compose up -d   # Starts postgres + redis + server + worker
 ```
 
 The Dockerfile includes a Node.js build stage that compiles the React frontend and bundles it into the server image.
@@ -116,6 +126,31 @@ The included React dashboard provides a merchant management UI.
 
 ## API Reference
 
+### Unified Response Format
+
+All API responses use a consistent envelope:
+
+```json
+// Success
+{"code": 0, "msg": "ok", "data": { ... }}
+
+// Error
+{"code": 20001, "msg": "payment not found"}
+```
+
+**Error code ranges:**
+
+| Range | Domain |
+|-------|--------|
+| `1xxxx` | General (auth, validation, rate limit) |
+| `2xxxx` | Payment |
+| `3xxxx` | Payout |
+| `4xxxx` | Refund |
+| `5xxxx` | Merchant |
+| `6xxxx` | Admin |
+
+**i18n error messages:** Error messages are returned in the caller's language. Set the `Accept-Language` header or append `?lang=` query parameter. Supported: `en`, `zh`, `ja`, `ko`, `es`.
+
 ### Public Endpoints
 
 | Method | Endpoint | Description |
@@ -144,7 +179,7 @@ The included React dashboard provides a merchant management UI.
 | GET | `/api/v1/refunds/:id` | Get refund status |
 | GET | `/api/v1/payments/:id/refunds` | List refunds for a payment |
 
-Refund amount is validated against `amount_received` — cannot exceed the original payment.
+Refund amount is validated against `amount_received` — the sum of all refunds for a payment cannot exceed the original payment amount.
 
 ### Payouts (with Approval Workflow)
 
@@ -245,6 +280,8 @@ All mutating API calls (POST/PUT/DELETE) are automatically recorded with merchan
 |----------|-------------|
 | `GET /ws/payments/:id` | Real-time payment status updates |
 
+WebSocket connections enforce origin validation, per-IP connection limits, and UUID format validation on the payment ID parameter.
+
 ## Payment Flow
 
 ```
@@ -289,7 +326,7 @@ All mutating API calls (POST/PUT/DELETE) are automatically recorded with merchan
 | `gas.deposit_completed` | Gas deposited for sweep |
 | `gas.low_balance` | Gas station low balance alert |
 
-All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification.
+All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification. Webhook delivery URLs are validated against SSRF (private/internal IPs are rejected).
 
 ## Security Features
 
@@ -298,9 +335,19 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | **API Key Auth** | SHA-256 hashed keys, never stored in plaintext |
 | **Request Signing** | Optional HMAC-SHA256 on requests (`X-Request-Signature`) |
 | **Webhook Signing** | HMAC-SHA256 on all webhook payloads |
-| **Idempotency** | `X-Idempotency-Key` header prevents duplicate requests |
+| **Idempotency** | `X-Idempotency-Key` header prevents duplicate requests (Redis `SET NX` with TTL; in-memory fallback) |
 | **IP Whitelist** | Per-merchant IP restriction, enforced in middleware |
-| **Rate Limiting** | 100 req/s with 200 burst per connection |
+| **Rate Limiting** | Sliding-window rate limiter backed by Redis sorted sets (in-memory fallback when Redis is unavailable) |
+| **RBAC (Admin)** | 3 roles (`super_admin`, `admin`, `viewer`) with 23 granular permissions; every admin endpoint gated with `RequirePermission()` |
+| **SSRF Prevention** | Webhook URLs validated to reject private/loopback/internal addresses |
+| **ILIKE Escaping** | User-supplied search strings are escaped before use in SQL `ILIKE` patterns to prevent wildcard injection |
+| **Refund Validation** | Sum of all refund amounts for a payment cannot exceed `amount_received` |
+| **Approval Threshold Bypass Prevention** | Approval thresholds enforced server-side; requests cannot bypass limits via direct API calls |
+| **HSTS + CSP Headers** | Strict-Transport-Security and Content-Security-Policy headers set on all responses |
+| **JWT Secret Required** | Server refuses to start if `admin.jwt_secret` is missing or empty |
+| **Random Password Generation** | If `admin.default_pass` is empty, a secure random password is generated and logged at startup |
+| **CORS Custom Headers** | CORS configuration exposes API-key and signature headers for cross-origin clients |
+| **WebSocket Hardening** | Origin validation, per-IP connection limits, UUID format validation on payment IDs |
 | **Private Key Zeroing** | Key material wiped from memory after use |
 | **HD Wallet** | BIP-39/32/44 deterministic address derivation |
 | **Cold/Hot Separation** | Auto-transfer excess funds to cold storage |
@@ -308,7 +355,6 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | **Atomic Processing** | SELECT FOR UPDATE SKIP LOCKED prevents double-processing |
 | **Input Validation** | Amount (positive integer), address format (per-chain regex) |
 | **Audit Log** | All mutating API calls recorded with IP + timestamp |
-| **Refund Validation** | Refund amount cannot exceed payment received |
 | **Session Storage** | API keys stored in sessionStorage (cleared on browser close) |
 
 ## Feature Comparison
@@ -327,15 +373,18 @@ All webhooks include `X-Webhook-Signature` (HMAC-SHA256) header for verification
 | CSV/JSON Export | ✓ | ✓ | ✓ |
 | Audit Log | ✓ | ✓ | ✓ |
 | Webhook HMAC | Custom | HMAC | SHA-256 HMAC |
-| Idempotency | ✓ | ✓ | ✓ |
+| Idempotency | ✓ | ✓ | ✓ (Redis-backed) |
 | IP Whitelist | - | ✓ | ✓ |
 | Request Signing | ✓ | ✓ | ✓ |
-| Rate Limiting | - | - | ✓ |
+| Rate Limiting | - | - | ✓ (Redis sliding window) |
 | Supported Currencies API | ✓ | ✓ | ✓ |
 | Balance/Ledger | ✓ | ✓ | ✓ |
 | Pagination | ✓ | ✓ | ✓ |
+| Unified Error Codes | - | - | ✓ (6 domains, 5-lang i18n) |
+| RBAC Admin | ✓ | ✓ | ✓ (3 roles, 23 permissions) |
 | Admin Dashboard | ✓ | ✓ | ✓ (React, dark-theme) |
 | Real-time WebSocket | - | - | ✓ |
+| SSRF Protection | - | - | ✓ |
 | Self-hosted | - | - | ✓ |
 | Open Source | - | - | ✓ (Apache 2.0) |
 
@@ -348,9 +397,14 @@ Set via `config/config.yaml` or environment variables (prefix `OCTOPUS_`):
 | `wallet.master_seed` | `OCTOPUS_WALLET_MASTER_SEED` | BIP-39 mnemonic |
 | `wallet.encryption_key` | `OCTOPUS_WALLET_ENCRYPTION_KEY` | 32-byte hex AES key |
 | `database.url` | `OCTOPUS_DATABASE_URL` | PostgreSQL connection |
+| `redis.addr` | `OCTOPUS_REDIS_ADDR` | Redis address (e.g. `localhost:6379`) |
+| `redis.password` | `OCTOPUS_REDIS_PASSWORD` | Redis password (optional) |
+| `redis.db` | `OCTOPUS_REDIS_DB` | Redis database number (default `0`) |
 | `chains.<name>.rpc_url` | - | Chain RPC endpoint |
 | `gas_station.enabled` | - | Enable gas fee management |
 | `gas_station.chains.<name>.station_address` | - | Gas station address |
+
+> **Redis is optional.** When `redis.addr` is empty or Redis is unreachable, the server automatically falls back to in-memory rate limiting and idempotency stores. For production deployments Redis is recommended.
 
 ## Admin Dashboard
 
@@ -373,6 +427,20 @@ OctopusWallet ships with a full-featured admin panel for platform operators. The
   </a>
 </p>
 
+### RBAC Roles & Permissions
+
+The admin panel uses role-based access control with three built-in roles:
+
+| Role | Access Level |
+|------|-------------|
+| `super_admin` | Full access — all 23 permissions, can manage admin users and roles |
+| `admin` | Read-only access across all resources |
+| `viewer` | Dashboard view only |
+
+**23 granular permissions** are enforced individually on every admin endpoint via `RequirePermission()` middleware:
+
+`dashboard:view`, `merchant:list`, `merchant:view`, `merchant:update`, `merchant:toggle`, `payment:list`, `payment:view`, `payout:list`, `payout:view`, `refund:list`, `refund:view`, `batch:list`, `batch:view`, `wallet:list`, `wallet:view`, `balance:list`, `balance:view`, `currency:list`, `currency:view`, `chain:view`, `admin:list`, `admin:create`, `admin:delete`
+
 ### Admin Capabilities
 
 | Category | Features |
@@ -387,14 +455,15 @@ OctopusWallet ships with a full-featured admin panel for platform operators. The
 | **Balances** | Merchant available/pending balance per chain and token |
 | **Currencies** | View and manage supported currencies and tokens per chain |
 | **Chain Status** | Real-time blockchain sync state and block height per chain |
-| **Admin Users** | Role-based access control (super_admin / admin), CRUD management |
-| **Security** | JWT auth, login rate limiting, CORS whitelist, security headers, CSP |
+| **Admin Users** | RBAC management — create/delete admins, assign roles (`super_admin` / `admin` / `viewer`) |
+| **Security** | JWT auth, login rate limiting, CORS whitelist, HSTS, CSP, SSRF protection |
+| **i18n** | Error messages in 5 languages (en, zh, ja, ko, es) via `Accept-Language` header or `?lang=` query param |
 
 ### Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Go + Gin + JWT + PostgreSQL (built into this repo) |
+| Backend | Go + Gin + GORM + JWT + PostgreSQL + Redis (built into this repo) |
 | Frontend | React 18 + TypeScript + Vite + Tailwind CSS v4 |
 | Data | TanStack Query + TanStack Table + Recharts |
 | State | Zustand + React Router v7 |
@@ -417,9 +486,9 @@ npm install && npm run dev
 
 ```yaml
 admin:
-  jwt_secret: "your-secure-secret"     # JWT signing key (required)
+  jwt_secret: "your-secure-secret"     # JWT signing key (REQUIRED — server will not start without this)
   default_user: "admin"                 # Default admin username
-  default_pass: "changeme"             # Default admin password
+  default_pass: "changeme"             # Default admin password (if empty, a random password is generated and logged)
   allowed_origins:                      # CORS origins for admin frontend
     - "http://localhost:5173"
     - "https://admin.yourdomain.com"
@@ -427,9 +496,9 @@ admin:
 
 | Config | Environment Variable | Description |
 |--------|---------------------|-------------|
-| `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret |
+| `admin.jwt_secret` | `OCTOPUS_ADMIN_JWT_SECRET` | JWT signing secret (required — server refuses to start if empty) |
 | `admin.default_user` | `OCTOPUS_ADMIN_DEFAULT_USER` | Default admin username |
-| `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password |
+| `admin.default_pass` | `OCTOPUS_ADMIN_DEFAULT_PASS` | Default admin password (random generated if empty) |
 
 ### Default Credentials
 
@@ -440,7 +509,7 @@ Username: admin
 Password: changeme
 ```
 
-> **Important:** Change the default password immediately in production.
+> **Important:** Change the default password immediately in production. If `default_pass` is left empty in the configuration, a secure random password will be generated and printed to the server log on first startup.
 
 ## License
 

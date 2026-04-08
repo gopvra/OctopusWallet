@@ -28,6 +28,8 @@ type AdminConfig struct {
 	DefaultUser    string   `mapstructure:"default_user"`
 	DefaultPass    string   `mapstructure:"default_pass"`
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	WebAuthnRPID   string   `mapstructure:"webauthn_rp_id"`     // Relying Party ID (domain)
+	WebAuthnOrigin string   `mapstructure:"webauthn_origin"`    // Expected origin URL
 }
 
 type GasStationConfig struct {
@@ -95,6 +97,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("admin.default_user", "admin")
 	v.SetDefault("admin.default_pass", "")
 	v.SetDefault("admin.allowed_origins", []string{"http://localhost:5173"})
+	v.SetDefault("admin.webauthn_rp_id", "localhost")
+	v.SetDefault("admin.webauthn_origin", "http://localhost:5173")
 
 	if path != "" {
 		v.SetConfigFile(path)

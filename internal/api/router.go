@@ -3,7 +3,10 @@ package api
 import (
 	"time"
 
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
 	R "github.com/octopuswallet/octopuswallet/internal/api/response"
@@ -146,7 +149,16 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	}
 
 	if adminStore != nil {
-		SetupAdminRoutes(r, adminStore, cfg.Admin.JWTSecret, cfg.Admin.AllowedOrigins)
+		// Initialize WebAuthn
+		wa, err := webauthn.New(&webauthn.Config{
+			RPDisplayName: "OctopusWallet Admin",
+			RPID:          cfg.Admin.WebAuthnRPID,
+			RPOrigins:     []string{cfg.Admin.WebAuthnOrigin},
+		})
+		if err != nil {
+			slog.Warn("webauthn initialization failed, passkey login disabled", "error", err)
+		}
+		SetupAdminRoutes(r, adminStore, cfg.Admin.JWTSecret, cfg.Admin.AllowedOrigins, wa)
 	}
 
 	return r

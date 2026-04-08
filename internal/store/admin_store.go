@@ -182,6 +182,13 @@ type AdminStore interface {
 	// Currencies
 	ListAllCurrencies(ctx context.Context) ([]models.SupportedCurrency, error)
 
+	// WebAuthn
+	CreateWebAuthnCredential(ctx context.Context, cred *models.WebAuthnCredential) error
+	GetWebAuthnCredentialsByUserID(ctx context.Context, userID string) ([]models.WebAuthnCredential, error)
+	GetWebAuthnCredentialByCredentialID(ctx context.Context, credentialID []byte) (*models.WebAuthnCredential, error)
+	UpdateWebAuthnCredentialSignCount(ctx context.Context, credentialID []byte, signCount uint32) error
+	DeleteWebAuthnCredential(ctx context.Context, id, userID string) error
+
 	// Dashboard
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
 	GetVolumeChart(ctx context.Context, days int) ([]VolumePoint, error)
