@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/google/uuid"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
@@ -19,28 +20,28 @@ func NewAdminPaymentHandler(s store.AdminStore) *AdminPaymentHandler {
 func (h *AdminPaymentHandler) List(c *gin.Context) {
 	var filter store.PaymentFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	result, err := h.store.ListPayments(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list payments"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	R.OK(c, result)
 }
 
 func (h *AdminPaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 	if _, err := uuid.Parse(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 	payment, err := h.store.AdminGetPaymentByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
-	c.JSON(http.StatusOK, payment)
+	R.OK(c, payment)
 }

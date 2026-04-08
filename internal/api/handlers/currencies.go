@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
@@ -23,31 +24,31 @@ func (h *CurrencyHandler) ListCurrencies(c *gin.Context) {
 	if chainFilter != "" {
 		currencies, err := h.store.GetSupportedCurrenciesByChain(c.Request.Context(), chainFilter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list currencies"})
+			R.Fail(c, errcode.ErrInternalServer)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"currencies": currencies})
+		R.OK(c, gin.H{"currencies": currencies})
 		return
 	}
 	currencies, err := h.store.GetSupportedCurrencies(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list currencies"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"currencies": currencies})
+	R.OK(c, gin.H{"currencies": currencies})
 }
 
 // GetExchangeRate returns estimated fee/rate for a chain (placeholder for rate API)
 func (h *CurrencyHandler) GetExchangeRate(c *gin.Context) {
 	chainName := c.Query("chain")
 	if chainName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "chain parameter required"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
 	chainImpl, err := h.registry.Get(chainName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -56,7 +57,7 @@ func (h *CurrencyHandler) GetExchangeRate(c *gin.Context) {
 		fee = "unknown"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	R.OK(c, gin.H{
 		"chain":          chainName,
 		"native_symbol":  chainImpl.NativeSymbol(),
 		"estimated_fee":  fee,

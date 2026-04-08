@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
@@ -22,10 +23,10 @@ func (h *BalanceHandler) GetBalances(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	balances, err := h.store.GetMerchantBalances(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get balances"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"balances": balances})
+	R.OK(c, gin.H{"balances": balances})
 }
 
 // ListPayments with pagination
@@ -41,10 +42,10 @@ func (h *BalanceHandler) ListPayments(c *gin.Context) {
 	}
 	payments, err := h.store.GetPaymentsByMerchant(c.Request.Context(), merchantID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list payments"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"payments": payments, "limit": limit, "offset": offset})
+	R.OK(c, gin.H{"payments": payments, "limit": limit, "offset": offset})
 }
 
 // ListPayouts with pagination
@@ -60,10 +61,10 @@ func (h *BalanceHandler) ListPayouts(c *gin.Context) {
 	}
 	payouts, err := h.store.GetPayoutsByMerchant(c.Request.Context(), merchantID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list payouts"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"payouts": payouts, "limit": limit, "offset": offset})
+	R.OK(c, gin.H{"payouts": payouts, "limit": limit, "offset": offset})
 }
 
 type SetIPWhitelistRequest struct {
@@ -73,27 +74,27 @@ type SetIPWhitelistRequest struct {
 func (h *BalanceHandler) SetIPWhitelist(c *gin.Context) {
 	var req SetIPWhitelistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 	merchantID := c.GetString("merchant_id")
 	if err := h.store.SetMerchantIPWhitelist(c.Request.Context(), merchantID, req.IPs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set IP whitelist"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 	// Sync middleware so IP restriction takes effect immediately
 	if h.ipWhitelist != nil {
 		h.ipWhitelist.SetWhitelist(merchantID, req.IPs)
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "IP whitelist updated", "ips": req.IPs})
+	R.OK(c, gin.H{"message": "IP whitelist updated", "ips": req.IPs})
 }
 
 func (h *BalanceHandler) GetIPWhitelist(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	ips, err := h.store.GetMerchantIPWhitelist(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get IP whitelist"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ips": ips})
+	R.OK(c, gin.H{"ips": ips})
 }

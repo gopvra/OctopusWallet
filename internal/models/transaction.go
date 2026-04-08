@@ -3,14 +3,14 @@ package models
 import "time"
 
 type Transaction struct {
-	ID            string    `db:"id" json:"id"`
-	Chain         string    `db:"chain" json:"chain"`
-	TxHash        string    `db:"tx_hash" json:"tx_hash"`
-	FromAddress   string    `db:"from_address" json:"from_address"`
-	ToAddress     string    `db:"to_address" json:"to_address"`
-	Amount        string    `db:"amount" json:"amount"`
-	Token         string    `db:"token" json:"token"`
-	BlockHeight   uint64    `db:"block_height" json:"block_height"`
-	Confirmations uint64    `db:"confirmations" json:"confirmations"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	ID            string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	Chain         string    `gorm:"not null;index" json:"chain"`
+	TxHash        string    `gorm:"column:tx_hash;not null;index" json:"tx_hash"`
+	FromAddress   string    `gorm:"not null" json:"from_address"`
+	ToAddress     string    `gorm:"not null" json:"to_address"`
+	Amount        string    `gorm:"not null" json:"amount"`
+	Token         string    `json:"token"`
+	BlockHeight   uint64    `gorm:"not null" json:"block_height"`
+	Confirmations uint64    `gorm:"default:0" json:"confirmations"`
+	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
 }

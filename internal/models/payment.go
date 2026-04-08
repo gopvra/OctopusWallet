@@ -10,21 +10,21 @@ const (
 )
 
 type Payment struct {
-	ID             string     `db:"id" json:"id"`
-	MerchantID     string     `db:"merchant_id" json:"merchant_id"`
-	Chain          string     `db:"chain" json:"chain"`
-	Token          string     `db:"token" json:"token"`
-	AmountExpected string     `db:"amount_expected" json:"amount_expected"`
-	AmountReceived string     `db:"amount_received" json:"amount_received"`
-	Address        string     `db:"address" json:"address"`
-	Status         string     `db:"status" json:"status"`
-	Currency       string     `db:"currency" json:"currency"`
-	Description    string     `db:"description" json:"description"`
-	OrderID        string     `db:"order_id" json:"order_id,omitempty"`
-	RedirectURL    string     `db:"redirect_url" json:"redirect_url,omitempty"`
-	TxHash         *string    `db:"tx_hash" json:"tx_hash,omitempty"`
-	Confirmations  int        `db:"confirmations" json:"confirmations"`
-	ExpiresAt      *time.Time `db:"expires_at" json:"expires_at,omitempty"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
+	ID             string     `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	MerchantID     string     `gorm:"type:uuid;index;not null" json:"merchant_id"`
+	Chain          string     `gorm:"not null" json:"chain"`
+	Token          string     `json:"token"`
+	AmountExpected string     `gorm:"not null" json:"amount_expected"`
+	AmountReceived string     `gorm:"default:'0'" json:"amount_received"`
+	Address        string     `gorm:"not null;index" json:"address"`
+	Status         string     `gorm:"default:'pending';index" json:"status"`
+	Currency       string     `json:"currency"`
+	Description    string     `json:"description"`
+	OrderID        string     `gorm:"column:order_id" json:"order_id,omitempty"`
+	RedirectURL    string     `gorm:"column:redirect_url" json:"redirect_url,omitempty"`
+	TxHash         *string    `gorm:"column:tx_hash" json:"tx_hash,omitempty"`
+	Confirmations  int        `gorm:"default:0" json:"confirmations"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }

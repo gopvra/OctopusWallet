@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/pkg/crypto"
@@ -26,18 +27,18 @@ type SetCollectionAddressRequest struct {
 func (h *SweepHandler) SetCollectionAddress(c *gin.Context) {
 	var req SetCollectionAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 	merchantID := c.GetString("merchant_id")
 
 	if err := crypto.ValidateAddress(req.Chain, req.Address); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 	if req.SweepThreshold != "" {
 		if err := crypto.ValidateAmountOrZero(req.SweepThreshold); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "sweep_threshold: " + err.Error()})
+			R.FailMsg(c, errcode.ErrBadRequest, "sweep_threshold: "+err.Error())
 			return
 		}
 	}
@@ -50,28 +51,28 @@ func (h *SweepHandler) SetCollectionAddress(c *gin.Context) {
 		IsActive:       true,
 	}
 	if err := h.store.UpsertMerchantCollectionAddress(c.Request.Context(), addr); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save collection address"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "collection address saved"})
+	R.OK(c, gin.H{"message": "collection address saved"})
 }
 
 func (h *SweepHandler) GetCollectionAddresses(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	addrs, err := h.store.GetMerchantCollectionAddresses(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get collection addresses"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"collection_addresses": addrs})
+	R.OK(c, gin.H{"collection_addresses": addrs})
 }
 
 func (h *SweepHandler) ListTasks(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	tasks, err := h.store.GetSweepTasksByMerchant(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list sweep tasks"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"sweep_tasks": tasks})
+	R.OK(c, gin.H{"sweep_tasks": tasks})
 }

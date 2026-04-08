@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/pkg/crypto"
@@ -31,18 +32,18 @@ type RegisterResponse struct {
 func (h *MerchantHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	if err := crypto.ValidateWebhookURL(req.WebhookURL); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	apiKey, err := crypto.GenerateAPIKey()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate api key"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
@@ -54,11 +55,11 @@ func (h *MerchantHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.store.CreateMerchant(c.Request.Context(), merchant); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create merchant"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
-	c.JSON(http.StatusCreated, RegisterResponse{
+	R.OK(c, RegisterResponse{
 		Merchant: merchant,
 		APIKey:   apiKey,
 	})
@@ -66,5 +67,5 @@ func (h *MerchantHandler) Register(c *gin.Context) {
 
 func (h *MerchantHandler) GetProfile(c *gin.Context) {
 	merchant, _ := c.Get("merchant")
-	c.JSON(http.StatusOK, merchant)
+	R.OK(c, merchant)
 }

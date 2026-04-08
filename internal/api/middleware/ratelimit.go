@@ -1,11 +1,12 @@
 package middleware
 
 import (
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"golang.org/x/time/rate"
 )
 
@@ -68,7 +69,7 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 			key = id.(string)
 		}
 		if !rl.getLimiter(key).Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+			R.Abort(c, errcode.ErrRateLimited)
 			return
 		}
 		c.Next()

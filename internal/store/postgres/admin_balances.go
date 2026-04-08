@@ -2,37 +2,23 @@ package postgres
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
 func (s *Store) ListAllMerchantBalances(ctx context.Context, filter store.BalanceFilter) ([]models.MerchantBalance, error) {
-	var conditions []string
-	var args []interface{}
-	argIdx := 1
+	query := s.db.WithContext(ctx).Model(&models.MerchantBalance{})
 
 	if filter.MerchantID != "" {
-		conditions = append(conditions, fmt.Sprintf("merchant_id = $%d", argIdx))
-		args = append(args, filter.MerchantID)
-		argIdx++
+		query = query.Where("merchant_id = ?", filter.MerchantID)
 	}
 	if filter.Chain != "" {
-		conditions = append(conditions, fmt.Sprintf("chain = $%d", argIdx))
-		args = append(args, filter.Chain)
-		argIdx++
+		query = query.Where("chain = ?", filter.Chain)
 	}
-
-	query := "SELECT * FROM merchant_balances"
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += " ORDER BY merchant_id, chain"
 
 	var balances []models.MerchantBalance
-	err := s.db.SelectContext(ctx, &balances, query, args...)
+	err := query.Order("merchant_id, chain").Find(&balances).Error
 	if balances == nil {
 		balances = []models.MerchantBalance{}
 	}

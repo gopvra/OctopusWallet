@@ -1,9 +1,13 @@
 package api
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/cache"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/config"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -11,11 +15,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub, adminStore store.AdminStore) *gin.Engine {
+func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook.Service, cfg *config.Config, hub *Hub, adminStore store.AdminStore, redis *cache.Client) *gin.Engine {
 	r := gin.Default()
 
+	// Global middleware: language detection for i18n responses
+	r.Use(middleware.LangMiddleware())
+
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "chains": registry.Names()})
+		R.OK(c, gin.H{"status": "ok", "chains": registry.Names()})
 	})
 
 	// WebSocket for real-time payment status
@@ -25,7 +32,6 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	r.Static("/static", "./web/dist/assets")
 	r.StaticFile("/", "./web/dist/index.html")
 	r.NoRoute(func(c *gin.Context) {
-		// SPA fallback — serve index.html for non-API routes
 		if len(c.Request.URL.Path) > 4 && c.Request.URL.Path[:4] != "/api" && c.Request.URL.Path[:3] != "/ws" {
 			c.File("./web/dist/index.html")
 			return
@@ -33,8 +39,26 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 		c.JSON(404, gin.H{"error": "not found"})
 	})
 
-	rl := middleware.NewRateLimiter(rate.Limit(100), 200)
-	idempotency := middleware.NewIdempotencyStore()
+	// Rate limiter: use Redis if available, else in-memory
+	var rlMiddleware gin.HandlerFunc
+	if redis != nil {
+		rl := middleware.NewRedisRateLimiter(redis, 100, time.Minute)
+		rlMiddleware = rl.Middleware()
+	} else {
+		rl := middleware.NewRateLimiter(rate.Limit(100), 200)
+		rlMiddleware = rl.Middleware()
+	}
+
+	// Idempotency: use Redis if available, else in-memory
+	var idemMiddleware gin.HandlerFunc
+	if redis != nil {
+		idem := middleware.NewRedisIdempotencyStore(redis)
+		idemMiddleware = idem.Middleware()
+	} else {
+		idem := middleware.NewIdempotencyStore()
+		idemMiddleware = idem.Middleware()
+	}
+
 	ipWhitelist := middleware.NewIPWhitelist()
 
 	merchantHandler := handlers.NewMerchantHandler(s)
@@ -54,7 +78,7 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	auditLogHandler := handlers.NewAuditLogHandler(s)
 
 	v1 := r.Group("/api/v1")
-	v1.Use(rl.Middleware())
+	v1.Use(rlMiddleware)
 
 	// Public endpoints
 	v1.POST("/merchants/register", merchantHandler.Register)
@@ -69,52 +93,40 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 	auth.Use(middleware.RequestHMAC())
 	auth.Use(middleware.AuditLog(s))
 	{
-		// Merchant
 		auth.GET("/merchants/profile", merchantHandler.GetProfile)
 
-		// Payments / Invoices (with idempotency)
-		auth.POST("/payments/create", idempotency.Middleware(), paymentHandler.CreatePayment)
+		auth.POST("/payments/create", idemMiddleware, paymentHandler.CreatePayment)
 		auth.GET("/payments/:id", paymentHandler.GetPayment)
-		auth.GET("/payments", balanceHandler.ListPayments) // paginated list
+		auth.GET("/payments", balanceHandler.ListPayments)
 
-		// Refunds
-		auth.POST("/refunds/create", idempotency.Middleware(), refundHandler.CreateRefund)
+		auth.POST("/refunds/create", idemMiddleware, refundHandler.CreateRefund)
 		auth.GET("/refunds/:id", refundHandler.GetRefund)
 		auth.GET("/payments/:payment_id/refunds", refundHandler.ListRefundsByPayment)
 
-		// Payouts (with idempotency + approval)
-		auth.POST("/payouts/create", idempotency.Middleware(), payoutHandler.CreatePayout)
+		auth.POST("/payouts/create", idemMiddleware, payoutHandler.CreatePayout)
 		auth.GET("/payouts/:id", payoutHandler.GetPayout)
-		auth.GET("/payouts", balanceHandler.ListPayouts) // paginated list
+		auth.GET("/payouts", balanceHandler.ListPayouts)
 
-		// Batch Payouts
-		auth.POST("/payouts/batch", idempotency.Middleware(), batchHandler.CreateBatchPayout)
+		auth.POST("/payouts/batch", idemMiddleware, batchHandler.CreateBatchPayout)
 		auth.GET("/payouts/batch/:id", batchHandler.GetBatchPayout)
 		auth.GET("/payouts/batches", batchHandler.ListBatchPayouts)
 
-		// Approval
 		auth.POST("/approval/config", approvalHandler.SetConfig)
 		auth.GET("/approval/config", approvalHandler.GetConfig)
 		auth.POST("/payouts/:id/approve", approvalHandler.ApprovePayout)
 		auth.POST("/payouts/:id/reject", approvalHandler.RejectPayout)
 
-		// Balance / Ledger
 		auth.GET("/balances", balanceHandler.GetBalances)
-
-		// Wallets
 		auth.GET("/wallets", walletHandler.List)
 
-		// Sweep
 		auth.POST("/sweep/collection-address", sweepHandler.SetCollectionAddress)
 		auth.GET("/sweep/collection-address", sweepHandler.GetCollectionAddresses)
 		auth.GET("/sweep/tasks", sweepHandler.ListTasks)
 
-		// Cold/Hot wallet
 		auth.POST("/cold-wallet/config", coldHotHandler.SetConfig)
 		auth.GET("/cold-wallet/config", coldHotHandler.GetConfig)
 		auth.GET("/cold-wallet/transfers", coldHotHandler.ListTransfers)
 
-		// Gas station
 		auth.GET("/gas/status", gasHandler.GetStatus)
 
 		// Payment Links
@@ -133,7 +145,6 @@ func NewRouter(s store.Store, registry *chain.Registry, seed []byte, wh *webhook
 		auth.GET("/security/ip-whitelist", balanceHandler.GetIPWhitelist)
 	}
 
-	// Admin routes
 	if adminStore != nil {
 		SetupAdminRoutes(r, adminStore, cfg.Admin.JWTSecret, cfg.Admin.AllowedOrigins)
 	}

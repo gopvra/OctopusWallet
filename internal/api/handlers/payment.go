@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
@@ -26,10 +27,10 @@ type CreatePaymentRequest struct {
 	Chain       string `json:"chain" binding:"required"`
 	Amount      string `json:"amount" binding:"required"`
 	Token       string `json:"token"`
-	Currency    string `json:"currency"`     // e.g. "USD" for display
-	Description string `json:"description"`  // invoice description
-	OrderID     string `json:"order_id"`     // merchant's order reference
-	RedirectURL string `json:"redirect_url"` // post-payment redirect
+	Currency    string `json:"currency"`
+	Description string `json:"description"`
+	OrderID     string `json:"order_id"`
+	RedirectURL string `json:"redirect_url"`
 }
 
 type CreatePaymentResponse struct {
@@ -45,51 +46,44 @@ type CreatePaymentResponse struct {
 func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 	var req CreatePaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	merchantID := c.GetString("merchant_id")
 
-	// Validate redirect_url if provided (prevent open redirect / javascript: URLs)
 	if req.RedirectURL != "" {
 		u, err := url.Parse(req.RedirectURL)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "redirect_url must be a valid http or https URL"})
+			R.Fail(c, errcode.ErrInvalidURL)
 			return
 		}
 	}
 
-	// Validate amount
 	if err := crypto.ValidateAmount(req.Amount); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.Fail(c, errcode.ErrInvalidAmount)
 		return
 	}
 
-	// Get chain implementation
 	chainImpl, err := h.registry.Get(req.Chain)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported chain"})
+		R.Fail(c, errcode.ErrUnsupportedChain)
 		return
 	}
 
-	// Get next derivation index for this merchant on this chain
 	nextIndex, err := h.store.GetNextDerivationIndex(c.Request.Context(), merchantID, req.Chain)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get derivation index"})
+		R.Fail(c, errcode.ErrDerivationIndexFailed)
 		return
 	}
 
-	// Derive a fresh address
-	// merchantIndex is derived from first 4 bytes of merchant UUID for deterministic mapping
 	merchantIndex := crypto.MerchantIDToIndex(merchantID)
 	address, err := chainImpl.DeriveAddress(h.seed, merchantIndex, uint32(nextIndex))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to derive address"})
+		R.Fail(c, errcode.ErrDeriveAddressFailed)
 		return
 	}
 
-	// Create wallet record
 	wallet := &models.Wallet{
 		MerchantID:      merchantID,
 		Chain:           req.Chain,
@@ -97,11 +91,10 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		DerivationIndex: nextIndex,
 	}
 	if err := h.store.CreateWallet(c.Request.Context(), wallet); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create wallet"})
+		R.Fail(c, errcode.ErrWalletCreateFailed)
 		return
 	}
 
-	// Create payment with 30 minute expiry
 	expiresAt := time.Now().Add(30 * time.Minute)
 	payment := &models.Payment{
 		MerchantID:     merchantID,
@@ -112,11 +105,11 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		ExpiresAt:      &expiresAt,
 	}
 	if err := h.store.CreatePayment(c.Request.Context(), payment); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create payment"})
+		R.Fail(c, errcode.ErrPaymentCreateFailed)
 		return
 	}
 
-	c.JSON(http.StatusCreated, CreatePaymentResponse{
+	R.OK(c, CreatePaymentResponse{
 		ID:      payment.ID,
 		Chain:   req.Chain,
 		Address: address,
@@ -131,14 +124,9 @@ func (h *PaymentHandler) GetPayment(c *gin.Context) {
 	id := c.Param("id")
 	merchantID := c.GetString("merchant_id")
 	payment, err := h.store.GetPaymentByID(c.Request.Context(), id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+	if err != nil || payment.MerchantID != merchantID {
+		R.Fail(c, errcode.ErrPaymentNotFound)
 		return
 	}
-	if payment.MerchantID != merchantID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
-		return
-	}
-	c.JSON(http.StatusOK, payment)
+	R.OK(c, payment)
 }
-

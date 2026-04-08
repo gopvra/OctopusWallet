@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/octopuswallet/octopuswallet/internal/api"
+	"github.com/octopuswallet/octopuswallet/internal/cache"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/chain/bitcoin"
 	"github.com/octopuswallet/octopuswallet/internal/chain/evm"
@@ -47,6 +48,18 @@ func main() {
 	}
 	defer store.Close()
 
+	// Initialize Redis (optional — if unavailable, falls back to in-memory)
+	var redisClient *cache.Client
+	if cfg.Redis.Addr != "" {
+		redisClient, err = cache.New(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+		if err != nil {
+			slog.Warn("redis unavailable, using in-memory fallback", "error", err)
+		} else {
+			slog.Info("redis connected", "addr", cfg.Redis.Addr)
+			defer redisClient.Close()
+		}
+	}
+
 	registry := chain.NewRegistry()
 	initChains(cfg, registry)
 
@@ -64,7 +77,7 @@ func main() {
 
 	webhookSvc := webhook.NewService(cfg.Webhook.Timeout, cfg.Webhook.MaxRetries, cfg.Webhook.RetryBackoff)
 	hub := api.NewHub()
-	router := api.NewRouter(store, registry, seed, webhookSvc, cfg, hub, store)
+	router := api.NewRouter(store, registry, seed, webhookSvc, cfg, hub, store, redisClient)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),

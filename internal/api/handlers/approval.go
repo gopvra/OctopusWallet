@@ -3,9 +3,10 @@ package handlers
 import (
 	"database/sql"
 	"math/big"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"github.com/octopuswallet/octopuswallet/internal/webhook"
@@ -32,7 +33,7 @@ type SetApprovalConfigRequest struct {
 func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 	var req SetApprovalConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
@@ -44,7 +45,7 @@ func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 	} {
 		if pair[0] != "" {
 			if err := crypto.ValidateAmountOrZero(pair[0]); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": pair[1] + ": " + err.Error()})
+				R.FailMsg(c, errcode.ErrBadRequest, pair[1]+": "+err.Error())
 				return
 			}
 		}
@@ -52,7 +53,7 @@ func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 
 	// Prevent bypass: if auto-release is enabled, threshold must be > 0
 	if req.Enabled && req.AutoRelease && (req.ApprovalThreshold == "0" || req.ApprovalThreshold == "") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "approval_threshold must be greater than 0 when auto_release is enabled"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -67,20 +68,20 @@ func (h *ApprovalHandler) SetConfig(c *gin.Context) {
 	}
 
 	if err := h.store.UpsertApprovalConfig(c.Request.Context(), cfg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save config"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "approval config saved"})
+	R.OK(c, gin.H{"message": "approval config saved"})
 }
 
 func (h *ApprovalHandler) GetConfig(c *gin.Context) {
 	merchantID := c.GetString("merchant_id")
 	cfg, err := h.store.GetApprovalConfig(c.Request.Context(), merchantID)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"config": nil})
+		R.OK(c, gin.H{"config": nil})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"config": cfg})
+	R.OK(c, gin.H{"config": cfg})
 }
 
 type ApproveRejectRequest struct {
@@ -92,22 +93,22 @@ func (h *ApprovalHandler) ApprovePayout(c *gin.Context) {
 	payoutID := c.Param("id")
 	var req ApproveRejectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	merchantID := c.GetString("merchant_id")
 	payout, err := h.store.GetPayoutByID(c.Request.Context(), payoutID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if payout.MerchantID != merchantID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "payout does not belong to this merchant"})
+		R.Fail(c, errcode.ErrForbidden)
 		return
 	}
 	if payout.ApprovalStatus != models.ApprovalStatusPendingApproval {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payout is not pending approval"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -120,42 +121,42 @@ func (h *ApprovalHandler) ApprovePayout(c *gin.Context) {
 		ApproverNote: req.Note,
 	}
 	if err := h.store.CreatePayoutApproval(c.Request.Context(), approval); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create approval"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	// Update payout approval status
 	if err := h.store.UpdatePayoutApprovalStatus(c.Request.Context(), payoutID, models.ApprovalStatusApproved); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payout"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	// Send webhook
 	h.sendApprovalWebhook(c, payout, models.ApprovalStatusApproved, req.ApproverID)
 
-	c.JSON(http.StatusOK, gin.H{"message": "payout approved", "payout_id": payoutID})
+	R.OK(c, gin.H{"message": "payout approved", "payout_id": payoutID})
 }
 
 func (h *ApprovalHandler) RejectPayout(c *gin.Context) {
 	payoutID := c.Param("id")
 	var req ApproveRejectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		R.FailMsg(c, errcode.ErrBadRequest, err.Error())
 		return
 	}
 
 	merchantID := c.GetString("merchant_id")
 	payout, err := h.store.GetPayoutByID(c.Request.Context(), payoutID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "payout not found"})
+		R.Fail(c, errcode.ErrNotFound)
 		return
 	}
 	if payout.MerchantID != merchantID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "payout does not belong to this merchant"})
+		R.Fail(c, errcode.ErrForbidden)
 		return
 	}
 	if payout.ApprovalStatus != models.ApprovalStatusPendingApproval {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "payout is not pending approval"})
+		R.Fail(c, errcode.ErrBadRequest)
 		return
 	}
 
@@ -168,24 +169,24 @@ func (h *ApprovalHandler) RejectPayout(c *gin.Context) {
 		ApproverNote: req.Note,
 	}
 	if err := h.store.CreatePayoutApproval(c.Request.Context(), approval); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create rejection record"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	// Update payout
 	if err := h.store.UpdatePayoutApprovalStatus(c.Request.Context(), payoutID, models.ApprovalStatusRejected); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payout approval status"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 	errMsg := "rejected by " + req.ApproverID
 	if err := h.store.UpdatePayoutStatus(c.Request.Context(), payoutID, models.PayoutStatusRejected, nil, &errMsg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update payout status"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
 
 	h.sendApprovalWebhook(c, payout, models.ApprovalStatusRejected, req.ApproverID)
 
-	c.JSON(http.StatusOK, gin.H{"message": "payout rejected", "payout_id": payoutID})
+	R.OK(c, gin.H{"message": "payout rejected", "payout_id": payoutID})
 }
 
 func (h *ApprovalHandler) sendApprovalWebhook(c *gin.Context, payout *models.Payout, status, approver string) {

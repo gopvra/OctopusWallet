@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	R "github.com/octopuswallet/octopuswallet/internal/api/response"
+	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 )
 
@@ -18,8 +19,8 @@ func NewAdminCurrencyHandler(s store.AdminStore) *AdminCurrencyHandler {
 func (h *AdminCurrencyHandler) List(c *gin.Context) {
 	currencies, err := h.store.ListAllCurrencies(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list currencies"})
+		R.Fail(c, errcode.ErrInternalServer)
 		return
 	}
-	c.JSON(http.StatusOK, currencies)
+	R.OK(c, currencies)
 }

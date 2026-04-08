@@ -10,17 +10,17 @@ const (
 )
 
 type Refund struct {
-	ID           string    `db:"id" json:"id"`
-	PaymentID    string    `db:"payment_id" json:"payment_id"`
-	MerchantID   string    `db:"merchant_id" json:"merchant_id"`
-	Chain        string    `db:"chain" json:"chain"`
-	Token        string    `db:"token" json:"token"`
-	ToAddress    string    `db:"to_address" json:"to_address"`
-	Amount       string    `db:"amount" json:"amount"`
-	Status       string    `db:"status" json:"status"`
-	TxHash       *string   `db:"tx_hash" json:"tx_hash,omitempty"`
-	Reason       string    `db:"reason" json:"reason"`
-	ErrorMessage *string   `db:"error_message" json:"error_message,omitempty"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID           string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	PaymentID    string    `gorm:"type:uuid;index;not null" json:"payment_id"`
+	MerchantID   string    `gorm:"type:uuid;index;not null" json:"merchant_id"`
+	Chain        string    `gorm:"not null" json:"chain"`
+	Token        string    `json:"token"`
+	ToAddress    string    `gorm:"not null" json:"to_address"`
+	Amount       string    `gorm:"not null" json:"amount"`
+	Status       string    `gorm:"default:'pending';index" json:"status"`
+	TxHash       *string   `gorm:"column:tx_hash" json:"tx_hash,omitempty"`
+	Reason       string    `json:"reason"`
+	ErrorMessage *string   `json:"error_message,omitempty"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

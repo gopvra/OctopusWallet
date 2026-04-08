@@ -23,15 +23,15 @@ func (s *Store) GetDashboardStats(ctx context.Context) (*store.DashboardStats, e
 	}
 
 	for _, q := range queries {
-		if err := s.db.GetContext(ctx, q.dest, q.query); err != nil {
+		if err := s.db.WithContext(ctx).Raw(q.query).Scan(q.dest).Error; err != nil {
 			return nil, err
 		}
 	}
 
 	var volume sql.NullString
-	err := s.db.GetContext(ctx, &volume,
-		"SELECT COALESCE(SUM(amount_received::numeric), 0)::text FROM payments WHERE status = 'completed'")
-	if err != nil {
+	if err := s.db.WithContext(ctx).Raw(
+		"SELECT COALESCE(SUM(amount_received::numeric), 0)::text FROM payments WHERE status = 'completed'",
+	).Scan(&volume).Error; err != nil {
 		return nil, err
 	}
 	if volume.Valid {
@@ -44,18 +44,16 @@ func (s *Store) GetDashboardStats(ctx context.Context) (*store.DashboardStats, e
 }
 
 func (s *Store) GetVolumeChart(ctx context.Context, days int) ([]store.VolumePoint, error) {
-	query := `
+	var points []store.VolumePoint
+	err := s.db.WithContext(ctx).Raw(`
 		SELECT
 			date_trunc('day', created_at)::date::text AS date,
 			COUNT(*) AS count,
 			COALESCE(SUM(amount_received::numeric), 0)::text AS volume
 		FROM payments
-		WHERE created_at >= now() - make_interval(days => $1)
+		WHERE created_at >= now() - make_interval(days => ?)
 		GROUP BY date_trunc('day', created_at)::date
-		ORDER BY date`
-
-	var points []store.VolumePoint
-	err := s.db.SelectContext(ctx, &points, query, days)
+		ORDER BY date`, days).Scan(&points).Error
 	if points == nil {
 		points = []store.VolumePoint{}
 	}
@@ -63,17 +61,15 @@ func (s *Store) GetVolumeChart(ctx context.Context, days int) ([]store.VolumePoi
 }
 
 func (s *Store) GetChainDistribution(ctx context.Context) ([]store.ChainDistribution, error) {
-	query := `
+	var dist []store.ChainDistribution
+	err := s.db.WithContext(ctx).Raw(`
 		SELECT
 			chain,
 			COUNT(*) AS count,
 			COALESCE(SUM(amount_received::numeric), 0)::text AS volume
 		FROM payments
 		GROUP BY chain
-		ORDER BY count DESC`
-
-	var dist []store.ChainDistribution
-	err := s.db.SelectContext(ctx, &dist, query)
+		ORDER BY count DESC`).Scan(&dist).Error
 	if dist == nil {
 		dist = []store.ChainDistribution{}
 	}
@@ -81,16 +77,14 @@ func (s *Store) GetChainDistribution(ctx context.Context) ([]store.ChainDistribu
 }
 
 func (s *Store) GetRecentActivity(ctx context.Context, limit int) ([]store.RecentActivity, error) {
-	query := `
+	var activity []store.RecentActivity
+	err := s.db.WithContext(ctx).Raw(`
 		(SELECT id, 'payment' AS type, chain, amount_expected AS amount, status, created_at
-		 FROM payments ORDER BY created_at DESC LIMIT $1)
+		 FROM payments ORDER BY created_at DESC LIMIT ?)
 		UNION ALL
 		(SELECT id, 'payout' AS type, chain, amount, status, created_at
-		 FROM payouts ORDER BY created_at DESC LIMIT $1)
-		ORDER BY created_at DESC LIMIT $1`
-
-	var activity []store.RecentActivity
-	err := s.db.SelectContext(ctx, &activity, query, limit)
+		 FROM payouts ORDER BY created_at DESC LIMIT ?)
+		ORDER BY created_at DESC LIMIT ?`, limit, limit, limit).Scan(&activity).Error
 	if activity == nil {
 		activity = []store.RecentActivity{}
 	}
