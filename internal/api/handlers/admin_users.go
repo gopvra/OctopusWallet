@@ -37,7 +37,7 @@ type CreateAdminUserRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=12,max=128"`
-	Role     string `json:"role" binding:"required,oneof=admin super_admin"`
+	Role     string `json:"role" binding:"required,oneof=admin super_admin viewer"`
 }
 
 func (h *AdminUserHandler) Create(c *gin.Context) {
@@ -71,7 +71,7 @@ func (h *AdminUserHandler) Create(c *gin.Context) {
 type UpdateAdminUserRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
-	Role     string `json:"role" binding:"required,oneof=admin super_admin"`
+	Role     string `json:"role" binding:"required,oneof=admin super_admin viewer"`
 	IsActive bool   `json:"is_active"`
 	Password string `json:"password,omitempty"`
 }

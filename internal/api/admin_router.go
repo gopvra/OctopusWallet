@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/octopuswallet/octopuswallet/internal/api/handlers"
 	"github.com/octopuswallet/octopuswallet/internal/api/middleware"
+	"github.com/octopuswallet/octopuswallet/internal/models"
 	"github.com/octopuswallet/octopuswallet/internal/store"
 	"golang.org/x/time/rate"
 )
@@ -36,57 +37,53 @@ func SetupAdminRoutes(r *gin.Engine, adminStore store.AdminStore, jwtSecret stri
 	protected := admin.Group("")
 	protected.Use(middleware.JWTAuth(jwtSecret))
 	{
-		// Auth
+		// Auth (any authenticated admin)
 		protected.GET("/auth/me", authHandler.Me)
 
 		// Dashboard
-		protected.GET("/dashboard/stats", dashboardHandler.Stats)
-		protected.GET("/dashboard/volume-chart", dashboardHandler.VolumeChart)
-		protected.GET("/dashboard/chain-distribution", dashboardHandler.ChainDistribution)
-		protected.GET("/dashboard/recent-activity", dashboardHandler.RecentActivity)
+		protected.GET("/dashboard/stats", middleware.RequirePermission(models.PermDashboardView), dashboardHandler.Stats)
+		protected.GET("/dashboard/volume-chart", middleware.RequirePermission(models.PermDashboardView), dashboardHandler.VolumeChart)
+		protected.GET("/dashboard/chain-distribution", middleware.RequirePermission(models.PermDashboardView), dashboardHandler.ChainDistribution)
+		protected.GET("/dashboard/recent-activity", middleware.RequirePermission(models.PermDashboardView), dashboardHandler.RecentActivity)
 
 		// Merchants
-		protected.GET("/merchants", merchantHandler.List)
-		protected.GET("/merchants/:id", merchantHandler.GetByID)
-		protected.PUT("/merchants/:id", merchantHandler.Update)
-		protected.PATCH("/merchants/:id/toggle-active", merchantHandler.ToggleActive)
+		protected.GET("/merchants", middleware.RequirePermission(models.PermMerchantList), merchantHandler.List)
+		protected.GET("/merchants/:id", middleware.RequirePermission(models.PermMerchantView), merchantHandler.GetByID)
+		protected.PUT("/merchants/:id", middleware.RequirePermission(models.PermMerchantUpdate), merchantHandler.Update)
+		protected.PATCH("/merchants/:id/toggle-active", middleware.RequirePermission(models.PermMerchantToggle), merchantHandler.ToggleActive)
 
 		// Payments
-		protected.GET("/payments", paymentHandler.List)
-		protected.GET("/payments/:id", paymentHandler.GetByID)
+		protected.GET("/payments", middleware.RequirePermission(models.PermPaymentList), paymentHandler.List)
+		protected.GET("/payments/:id", middleware.RequirePermission(models.PermPaymentView), paymentHandler.GetByID)
 
 		// Payouts
-		protected.GET("/payouts", payoutHandler.List)
-		protected.GET("/payouts/:id", payoutHandler.GetByID)
+		protected.GET("/payouts", middleware.RequirePermission(models.PermPayoutList), payoutHandler.List)
+		protected.GET("/payouts/:id", middleware.RequirePermission(models.PermPayoutView), payoutHandler.GetByID)
 
 		// Wallets
-		protected.GET("/wallets", walletHandler.List)
+		protected.GET("/wallets", middleware.RequirePermission(models.PermWalletList), walletHandler.List)
 
 		// Refunds
-		protected.GET("/refunds", refundHandler.List)
-		protected.GET("/refunds/:id", refundHandler.GetByID)
+		protected.GET("/refunds", middleware.RequirePermission(models.PermRefundList), refundHandler.List)
+		protected.GET("/refunds/:id", middleware.RequirePermission(models.PermRefundView), refundHandler.GetByID)
 
 		// Batch Payouts
-		protected.GET("/batch-payouts", batchPayoutHandler.List)
-		protected.GET("/batch-payouts/:id", batchPayoutHandler.GetByID)
+		protected.GET("/batch-payouts", middleware.RequirePermission(models.PermBatchPayoutList), batchPayoutHandler.List)
+		protected.GET("/batch-payouts/:id", middleware.RequirePermission(models.PermBatchPayoutView), batchPayoutHandler.GetByID)
 
 		// Balances
-		protected.GET("/balances", balanceHandler.List)
+		protected.GET("/balances", middleware.RequirePermission(models.PermBalanceList), balanceHandler.List)
 
 		// Currencies
-		protected.GET("/currencies", currencyHandler.List)
+		protected.GET("/currencies", middleware.RequirePermission(models.PermCurrencyList), currencyHandler.List)
 
 		// Chain State
-		protected.GET("/chain-state", chainStateHandler.List)
+		protected.GET("/chain-state", middleware.RequirePermission(models.PermChainStateList), chainStateHandler.List)
 
-		// Admin Users (super_admin only)
-		adminUsers := protected.Group("")
-		adminUsers.Use(middleware.RequireSuperAdmin())
-		{
-			adminUsers.GET("/admin-users", adminUserHandler.List)
-			adminUsers.POST("/admin-users", adminUserHandler.Create)
-			adminUsers.PUT("/admin-users/:id", adminUserHandler.Update)
-			adminUsers.DELETE("/admin-users/:id", adminUserHandler.Delete)
-		}
+		// Admin Users
+		protected.GET("/admin-users", middleware.RequirePermission(models.PermAdminUserList), adminUserHandler.List)
+		protected.POST("/admin-users", middleware.RequirePermission(models.PermAdminUserCreate), adminUserHandler.Create)
+		protected.PUT("/admin-users/:id", middleware.RequirePermission(models.PermAdminUserUpdate), adminUserHandler.Update)
+		protected.DELETE("/admin-users/:id", middleware.RequirePermission(models.PermAdminUserDelete), adminUserHandler.Delete)
 	}
 }
