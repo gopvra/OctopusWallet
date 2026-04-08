@@ -33,6 +33,13 @@ Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-cli
 
 ## Architecture
 
+<p align="center">
+  <img src="docs/architecture.svg" alt="System Architecture" width="100%" />
+</p>
+
+<details>
+<summary>Text version</summary>
+
 ```
                     ┌──────────────┐
   Merchant API ───> │  API Server  │ ──── PostgreSQL (via GORM)
@@ -50,6 +57,7 @@ Customers see a hosted payment page at `/pay/:id` with QR code scanning, one-cli
                           │
                     Webhook ──────> Merchant
 ```
+</details>
 
 **Data layer:** All database access uses [GORM](https://gorm.io/) (`gorm.io/gorm` + `gorm.io/driver/postgres`). The previous sqlx/raw-SQL layer has been fully replaced — all 108 queries are now expressed through the GORM query builder.
 
