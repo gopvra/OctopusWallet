@@ -31,6 +31,12 @@ func parseLang(s string) errcode.Lang {
 	switch {
 	case strings.HasPrefix(s, "zh"):
 		return errcode.LangZH
+	case strings.HasPrefix(s, "ja"):
+		return errcode.LangJA
+	case strings.HasPrefix(s, "ko"):
+		return errcode.LangKO
+	case strings.HasPrefix(s, "es"):
+		return errcode.LangES
 	default:
 		return errcode.LangEN
 	}

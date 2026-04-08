@@ -7,6 +7,7 @@ import (
 	R "github.com/octopuswallet/octopuswallet/internal/api/response"
 	"github.com/octopuswallet/octopuswallet/internal/api/errcode"
 	"github.com/octopuswallet/octopuswallet/internal/auth"
+	"github.com/octopuswallet/octopuswallet/internal/models"
 )
 
 func JWTAuth(secret string) gin.HandlerFunc {
@@ -46,6 +47,17 @@ func RequireSuperAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := c.GetString("admin_role")
 		if role != "super_admin" {
+			R.Abort(c, errcode.ErrAdminInsufficientRole)
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequirePermission(perm models.Permission) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role := c.GetString("admin_role")
+		if !models.HasPermission(role, perm) {
 			R.Abort(c, errcode.ErrAdminInsufficientRole)
 			return
 		}

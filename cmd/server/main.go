@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -142,6 +144,15 @@ func initChains(cfg *config.Config, registry *chain.Registry) {
 	}
 }
 
+func generateRandomPassword(length int) (string, error) {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	// Use URL-safe base64 and trim to exact length
+	return base64.URLEncoding.EncodeToString(b)[:length], nil
+}
+
 func initAdminUser(s *postgres.Store, cfg *config.Config) {
 	count, err := s.CountAdminUsers(context.Background())
 	if err != nil {
@@ -152,7 +163,21 @@ func initAdminUser(s *postgres.Store, cfg *config.Config) {
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Admin.DefaultPass), bcrypt.DefaultCost)
+	password := cfg.Admin.DefaultPass
+	if password == "" {
+		generated, err := generateRandomPassword(24)
+		if err != nil {
+			slog.Error("failed to generate random admin password", "error", err)
+			return
+		}
+		password = generated
+		slog.Warn("no default admin password configured — generated random password (change it immediately)",
+			"username", cfg.Admin.DefaultUser,
+			"password", password,
+		)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		slog.Error("failed to hash default admin password", "error", err)
 		return
