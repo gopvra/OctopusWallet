@@ -11,7 +11,9 @@ import (
 	"net/http"
 
 	sol "github.com/cielu/go-solana"
+	"github.com/cielu/go-solana/core/spltoken"
 	solsys "github.com/cielu/go-solana/core/system"
+	soltoken "github.com/cielu/go-solana/core/token"
 	"github.com/mr-tron/base58"
 	"github.com/octopuswallet/octopuswallet/internal/chain"
 	"github.com/octopuswallet/octopuswallet/internal/wallet"
@@ -227,20 +229,48 @@ func (c *Client) GetTransactionConfirmations(ctx context.Context, txHash string)
 	return currentSlot - txInfo.Slot, nil
 }
 
-// --- Send Transaction (SOL native transfer) ---
+// --- Send Transaction (SOL native + SPL Token) ---
 
 func (c *Client) SendTransaction(ctx context.Context, req chain.SendRequest) (string, error) {
-	lamports := new(big.Int)
-	if _, ok := lamports.SetString(req.Amount, 10); !ok {
+	amount := new(big.Int)
+	if _, ok := amount.SetString(req.Amount, 10); !ok {
 		return "", fmt.Errorf("invalid amount: %s", req.Amount)
 	}
 
 	fromPubkey := sol.Base58ToPublicKey(req.FromAddress)
 	toPubkey := sol.Base58ToPublicKey(req.ToAddress)
 
-	// Build system transfer instruction (args: from, to, lamports)
-	inst := solsys.NewTransferInstruction(fromPubkey, toPubkey, lamports.Uint64())
-	instruction := inst.Build()
+	var instructions []sol.Instruction
+
+	if req.Token == "" {
+		// --- SOL native transfer ---
+		inst := solsys.NewTransferInstruction(fromPubkey, toPubkey, amount.Uint64())
+		instructions = append(instructions, inst.Build())
+	} else {
+		// --- SPL Token transfer ---
+		mintPubkey := sol.Base58ToPublicKey(req.Token)
+
+		// Derive Associated Token Accounts for sender and recipient
+		srcATA, _, err := spltoken.FindAssociatedTokenAddress(fromPubkey, mintPubkey)
+		if err != nil {
+			return "", fmt.Errorf("find source ATA: %w", err)
+		}
+		destATA, _, err := spltoken.FindAssociatedTokenAddress(toPubkey, mintPubkey)
+		if err != nil {
+			return "", fmt.Errorf("find destination ATA: %w", err)
+		}
+
+		// Build TransferChecked instruction
+		transferInst := soltoken.NewTransferCheckedInstructionBuilder().
+			SetAmount(amount.Uint64()).
+			SetDecimals(req.Decimals).
+			SetSourceAccount(srcATA).
+			SetMintAccount(mintPubkey).
+			SetDestinationAccount(destATA).
+			SetOwnerAccount(fromPubkey)
+
+		instructions = append(instructions, transferInst.Build())
+	}
 
 	// Get recent blockhash
 	blockHashResult, err := c.sc.GetLatestBlockhash(ctx)
@@ -249,11 +279,7 @@ func (c *Client) SendTransaction(ctx context.Context, req chain.SendRequest) (st
 	}
 
 	// Create transaction
-	tx, err := sol.NewTransaction(
-		[]sol.Instruction{instruction},
-		blockHashResult.LastBlock.Blockhash,
-		fromPubkey,
-	)
+	tx, err := sol.NewTransaction(instructions, blockHashResult.LastBlock.Blockhash, fromPubkey)
 	if err != nil {
 		return "", fmt.Errorf("create transaction: %w", err)
 	}

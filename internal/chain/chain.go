@@ -47,6 +47,7 @@ type SendRequest struct {
 	FromAddress string
 	ToAddress   string
 	Amount      string
-	Token       string // empty for native
+	Token       string // empty for native, contract/mint address for tokens
+	Decimals    uint8  // token decimals (used by Solana SPL TransferChecked)
 	PrivateKey  []byte
 }
